@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="es-CO">
+  <head>
+    <meta charset="UTF-8" />
+    <!--
+      `interactive-widget=resizes-content` es lo que hace que al abrirse el
+      teclado del celular la ventana de diseño ENCOJA, y no solo la visual.
+      Sin esto, el pie de una hoja —anclada con `fixed inset-0`— se queda en el
+      borde de una ventana que el teclado ya está tapando: el cajero escribe
+      con cuánto le pagan y el botón de confirmar el cobro deja de verse.
+    -->
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, viewport-fit=cover, interactive-widget=resizes-content"
+    />
+    <!-- El color de la barra del navegador en el celular. Tiene que ser el mismo
+         fondo del sitio (carbon-950); con otro color, el telefono pinta una franja
+         que no corresponde a nada de la pagina y parece que el diseno cambiara. -->
+    <meta name="theme-color" content="#0A0A0A" />
+
+    <!--
+      Lo que se lee en el resultado de Google.
+
+      El titulo lleva la ciudad a proposito: nadie busca "Carly’s" a secas, se
+      busca "restaurante en Turbaco". La descripcion cabe en los ~155 caracteres
+      que Google alcanza a mostrar antes de cortarla.
+    -->
+    <title>Carly’s Restobar · Restobar en Turbaco, Bolívar</title>
+    <meta
+      name="description"
+      content="Restobar en Turbaco, Bolívar: cocina, coctelería y música. Reserve su mesa, vea la carta o pida a domicilio. Abierto de martes a domingo."
+    />
+    <meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1" />
+    <meta name="author" content="Carly’s Restobar" />
+
+    <!-- Lo que se ve al pegar el enlace en WhatsApp, que es por donde de verdad
+         circula un restaurante en la Costa. -->
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="Carly’s Restobar" />
+    <meta property="og:locale" content="es_CO" />
+    <meta property="og:title" content="Carly’s Restobar · Turbaco, Bolívar" />
+    <meta
+      property="og:description"
+      content="Cocina, coctelería y buena música en Turbaco. Reserve su mesa, vea la carta o pida a domicilio."
+    />
+    <!--
+      Lo que se ve al pegar el enlace en WhatsApp.
+
+      Va el logo COMPLETO —con su texto— porque aquí aparece solo, sin nada al
+      lado que diga de quién es.
+
+      La imagen es apaisada, de 1200x630 —el logo sobre negro con una línea
+      dorada—, que es la medida que WhatsApp, Facebook y X muestran grande sin
+      recortar. Por eso la tarjeta de X es `summary_large_image`.
+    -->
+    <!--
+      La URL va ABSOLUTA y con el dominio escrito. Las rutas relativas no
+      sirven aquí: quien lee esta etiqueta es el robot de WhatsApp o de
+      Facebook, que no tiene página de referencia contra la cual resolver un
+      «/logo.png», y simplemente no muestra imagen. Es el error que hace que un
+      enlace se comparta sin nada.
+
+      DOMINIO PENDIENTE: la casa todavía no tiene dominio propio. Cuando lo
+      tenga, se cambia aquí (en las dos etiquetas de imagen) y en el README.
+    -->
+    <meta property="og:image" content="https://carlysrestobar.co/logo-og.png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="Logo del Carly’s Restobar" />
+    <meta name="twitter:image" content="https://carlysrestobar.co/logo-og.png" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="Carly’s Restobar · Turbaco, Bolívar" />
+    <meta
+      name="twitter:description"
+      content="Cocina de fusión y coctelería de autor. Reserve su mesa, vea la carta o pida a domicilio."
+    />
+
+    <!-- Señales de local: viejas, pero varios buscadores y directorios todavía
+         las leen, y no estorban. -->
+    <meta name="geo.region" content="CO-BOL" />
+    <meta name="geo.placename" content="Turbaco, Bolívar" />
+    <meta name="geo.position" content="10.3406;-75.4152" />
+    <meta name="ICBM" content="10.3406, -75.4152" />
+
+    <!--
+      El icono de la pestaña es el emblema de la casa: la «C» con la silueta
+      dentro, sin el texto. A 32 píxeles las letras «CARLY’S» son una mancha que
+      solo ensucia el dibujo; un icono a ese tamaño tiene que ser una silueta
+      reconocible.
+
+      Va en claro sobre un cuadro negro, no suelto: sin fondo desaparece en las
+      pestañas claras del navegador. El SVG se ve nítido a cualquier tamaño;
+      el PNG queda para los navegadores que no aceptan un icono vectorial.
+    -->
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <link rel="icon" href="/favicon-32.png" type="image/png" sizes="32x32" />
+    <link rel="icon" href="/icono-512.png" type="image/png" sizes="512x512" />
+    <!-- iOS usa este para la pantalla de inicio. -->
+    <link rel="apple-touch-icon" href="/logo-180.png" />
+
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Jost:wght@300;400;500&family=Manrope:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+
+    <!--
+      Ficha del negocio en el lenguaje que Google entiende sin adivinar.
+
+      Es lo que alimenta el recuadro lateral y el resultado con horario y
+      dirección. Va escrita aquí y no generada por la aplicación porque un robot
+      que no ejecuta JavaScript tiene que poder leerla igual.
+
+      Nota: esto no reemplaza el perfil de Google Business. Para aparecer en el
+      mapa hay que reclamar la ficha del local; esto la respalda.
+    -->
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "Restaurant",
+        "name": "Carly’s Restobar",
+        "description": "Restobar en Turbaco, Bolívar: cocina, coctelería y música.",
+        "servesCuisine": ["Comida rápida gourmet", "Cocina caribeña", "Coctelería"],
+        "priceRange": "$",
+        "currenciesAccepted": "COP",
+        "paymentAccepted": "Efectivo, Tarjeta, Transferencia",
+        "telephone": "+573145320685",
+        "acceptsReservations": true,
+        "address": {
+          "@type": "PostalAddress",
+          "streetAddress": "Carrera 27 con Calle 28",
+          "addressLocality": "Turbaco",
+          "addressRegion": "Bolívar",
+          "postalCode": "131001",
+          "addressCountry": "CO"
+        },
+        "hasMap": "https://maps.app.goo.gl/2tp2SiV8qJAdhXkf6",
+        "geo": {
+          "@type": "GeoCoordinates",
+          "latitude": 10.3392264,
+          "longitude": -75.4154494
+        },
+                "sameAs": ["https://www.instagram.com/carlys.restobar"],
+        "openingHoursSpecification": [
+          {
+            "@type": "OpeningHoursSpecification",
+            "dayOfWeek": ["Tuesday", "Wednesday", "Thursday"],
+            "opens": "16:00",
+            "closes": "23:00"
+          },
+          {
+            "@type": "OpeningHoursSpecification",
+            "dayOfWeek": ["Friday", "Saturday"],
+            "opens": "16:00",
+            "closes": "23:59"
+          },
+          {
+            "@type": "OpeningHoursSpecification",
+            "dayOfWeek": "Sunday",
+            "opens": "14:00",
+            "closes": "23:00"
+          }
+        ]
+      }
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

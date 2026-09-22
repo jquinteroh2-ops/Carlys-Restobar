@@ -1,0 +1,429 @@
+import { CLAVE_ACCESO, CLAVE_REFRESCO, MARGEN_RENOVACION_SEGUNDOS, URL_API } from './config'
+import { SinConexionError, hayConexion } from './conexion'
+
+/**
+ * Cliente HTTP contra el backend.
+ *
+ * Aqui vive la credencial y aqui se renueva. Ninguna pantalla sabe que existe
+ * un token: piden datos a mockApi y mockApi los pide por aqui.
+ *
+ * Los tokens viven en sessionStorage y no en localStorage a proposito, por lo
+ * mismo que la sesion: cada pestana puede tener a un usuario distinto, que es
+ * lo que permite abrir la comandera en una y la pantalla de cocina en otra
+ * durante una demostracion, y lo que evita que cerrar sesion en un dispositivo
+ * compartido deje la puerta abierta en la pestana de al lado.
+ */
+
+// ---------------------------------------------------------------------------
+// Credenciales de la pestana
+// ---------------------------------------------------------------------------
+
+interface Credenciales {
+  acceso: string
+  refresco: string
+  /** Instante en milisegundos en que deja de servir el token de acceso. */
+  expiraEn: number
+}
+
+let enMemoria: Credenciales | null = null
+
+function leerCredenciales(): Credenciales | null {
+  if (enMemoria) return enMemoria
+  try {
+    const acceso = sessionStorage.getItem(CLAVE_ACCESO)
+    const refresco = sessionStorage.getItem(CLAVE_REFRESCO)
+    if (!acceso || !refresco) return null
+    enMemoria = { acceso, refresco, expiraEn: expiracionDe(acceso) }
+    return enMemoria
+  } catch {
+    return null
+  }
+}
+
+export function guardarCredenciales(acceso: string, refresco: string): void {
+  enMemoria = { acceso, refresco, expiraEn: expiracionDe(acceso) }
+  try {
+    sessionStorage.setItem(CLAVE_ACCESO, acceso)
+    sessionStorage.setItem(CLAVE_REFRESCO, refresco)
+  } catch {
+    // Un navegador con el almacenamiento bloqueado sigue funcionando mientras
+    // la pestana este abierta: la credencial en memoria alcanza para el turno.
+  }
+}
+
+export function borrarCredenciales(): void {
+  enMemoria = null
+  try {
+    sessionStorage.removeItem(CLAVE_ACCESO)
+    sessionStorage.removeItem(CLAVE_REFRESCO)
+  } catch {
+    /* nada que limpiar si no hay almacenamiento */
+  }
+}
+
+export function tokenDeRefresco(): string | null {
+  return leerCredenciales()?.refresco ?? null
+}
+
+export function haySesion(): boolean {
+  return leerCredenciales() !== null
+}
+
+/**
+ * Lee la fecha de expiracion del token sin verificar la firma.
+ *
+ * Verificarla aqui no tendria sentido: la firma la comprueba el backend, que es
+ * el unico que conoce el secreto. Esto solo sirve para saber cuando conviene
+ * pedir uno nuevo, y si el dato viniera manipulado lo unico que se lograria es
+ * renovar antes de tiempo.
+ */
+function expiracionDe(token: string): number {
+  try {
+    const cuerpo = token.split('.')[1]
+    const json = atob(cuerpo.replace(/-/g, '+').replace(/_/g, '/'))
+    const datos = JSON.parse(json) as { exp?: number }
+    return datos.exp ? datos.exp * 1000 : 0
+  } catch {
+    return 0
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Expiracion de la sesion
+// ---------------------------------------------------------------------------
+
+type OyenteExpiracion = () => void
+const oyentesExpiracion = new Set<OyenteExpiracion>()
+
+/**
+ * Avisa cuando la sesion se cayo de forma irrecuperable.
+ *
+ * Lo escucha auth.tsx para limpiar su estado y mandar a la pantalla de acceso.
+ * Esta aqui y no alla porque quien se entera primero es el cliente, que es el
+ * que recibe el 401 del backend.
+ */
+export function alExpirarSesion(oyente: OyenteExpiracion): () => void {
+  oyentesExpiracion.add(oyente)
+  return () => {
+    oyentesExpiracion.delete(oyente)
+  }
+}
+
+function anunciarExpiracion(): void {
+  borrarCredenciales()
+  for (const oyente of oyentesExpiracion) {
+    try {
+      oyente()
+    } catch (error) {
+      console.error('[cliente] un oyente de expiración falló', error)
+    }
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Renovacion silenciosa
+// ---------------------------------------------------------------------------
+
+/**
+ * Renovacion en curso, si la hay.
+ *
+ * Se comparte entre todas las peticiones para que diez consultas simultaneas
+ * con el token vencido disparen una sola renovacion. Sin esto, cada una
+ * canjearia el refresco y, como el backend lo rota de un solo uso, la primera
+ * en llegar invalidaria a las otras nueve y la sesion se caeria sola.
+ */
+let renovacionEnCurso: Promise<string | null> | null = null
+
+async function renovar(): Promise<string | null> {
+  if (renovacionEnCurso) return renovacionEnCurso
+
+  renovacionEnCurso = (async () => {
+    const credenciales = leerCredenciales()
+    if (!credenciales) return null
+    try {
+      const respuesta = await fetch(`${URL_API}/api/acceso/refrescar`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ refresco: credenciales.refresco }),
+      })
+      if (!respuesta.ok) {
+        anunciarExpiracion()
+        return null
+      }
+      const datos = (await respuesta.json()) as { acceso: string; refresco: string }
+      guardarCredenciales(datos.acceso, datos.refresco)
+      return datos.acceso
+    } catch {
+      // Fallo de red: la sesion no se declara perdida, porque el token puede
+      // seguir siendo valido cuando vuelva la senal. Echar al mesero por un
+      // corte de WiFi de tres segundos seria peor que dejarlo reintentar.
+      return null
+    } finally {
+      renovacionEnCurso = null
+    }
+  })()
+
+  return renovacionEnCurso
+}
+
+/** Token vigente, renovandolo antes de tiempo si esta por vencer. */
+async function tokenVigente(): Promise<string | null> {
+  const credenciales = leerCredenciales()
+  if (!credenciales) return null
+
+  const margen = MARGEN_RENOVACION_SEGUNDOS * 1000
+  if (Date.now() < credenciales.expiraEn - margen) return credenciales.acceso
+
+  return (await renovar()) ?? credenciales.acceso
+}
+
+// ---------------------------------------------------------------------------
+// Peticiones
+// ---------------------------------------------------------------------------
+
+/** Error del backend con el mensaje que se le muestra al usuario. */
+export class ErrorApi extends Error {
+  readonly estado: number
+
+  constructor(mensaje: string, estado: number) {
+    super(mensaje)
+    this.name = 'ErrorApi'
+    this.estado = estado
+  }
+}
+
+interface Opciones {
+  metodo?: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE'
+  cuerpo?: unknown
+  /** Parametros de consulta. Los `undefined` no se envian. */
+  consulta?: Record<string, string | number | boolean | undefined>
+  /** Rutas abiertas del sitio publico, que no deben forzar sesion. */
+  sinSesion?: boolean
+}
+
+function construirUrl(ruta: string, consulta?: Opciones['consulta']): string {
+  const url = new URL(`${URL_API}${ruta}`)
+  for (const [clave, valor] of Object.entries(consulta ?? {})) {
+    if (valor === undefined || valor === '') continue
+    url.searchParams.set(clave, String(valor))
+  }
+  return url.toString()
+}
+
+async function mensajeDeError(respuesta: Response): Promise<string> {
+  try {
+    const cuerpo = (await respuesta.json()) as { mensaje?: string }
+    if (cuerpo?.mensaje) return cuerpo.mensaje
+  } catch {
+    /* el cuerpo no era JSON */
+  }
+  return 'No se pudo completar la operación'
+}
+
+/**
+ * Hace la peticion y devuelve el cuerpo ya convertido.
+ *
+ * Un 204 devuelve `undefined`: el backend lo usa para las operaciones que no
+ * tienen nada que responder y para «la mesa no tiene cuenta abierta», que en
+ * mockApi.ts era un `null` y aqui se traduce en quien llama.
+ */
+export async function pedir<T>(ruta: string, opciones: Opciones = {}): Promise<T> {
+  const { metodo = 'GET', cuerpo, consulta, sinSesion = false } = opciones
+
+  // Sin senal no se intenta la peticion, para que el error llegue de inmediato
+  // y la comandera pueda encolar en vez de esperar el tiempo de espera del
+  // navegador con el mesero mirando la pantalla.
+  if (!hayConexion()) throw new SinConexionError()
+
+  const cabeceras: Record<string, string> = {}
+  if (cuerpo !== undefined) cabeceras['Content-Type'] = 'application/json'
+
+  if (!sinSesion) {
+    const token = await tokenVigente()
+    if (token) cabeceras.Authorization = `Bearer ${token}`
+  }
+
+  let respuesta: Response
+  try {
+    respuesta = await fetch(construirUrl(ruta, consulta), {
+      method: metodo,
+      headers: cabeceras,
+      body: cuerpo === undefined ? undefined : JSON.stringify(cuerpo),
+    })
+  } catch {
+    // `fetch` solo rechaza por problemas de red, no por códigos de error.
+    throw new SinConexionError('No hay conexión con el servidor')
+  }
+
+  // Un 401 con el token recien renovado significa que la sesion ya no vale:
+  // se reintenta una sola vez y, si vuelve a fallar, se cierra la sesion en
+  // lugar de dejar al usuario en una pantalla que no carga nada.
+  if (respuesta.status === 401 && !sinSesion) {
+    const nuevo = await renovar()
+    if (!nuevo) {
+      anunciarExpiracion()
+      throw new ErrorApi('La sesión expiró: vuelva a ingresar', 401)
+    }
+    respuesta = await fetch(construirUrl(ruta, consulta), {
+      method: metodo,
+      headers: { ...cabeceras, Authorization: `Bearer ${nuevo}` },
+      body: cuerpo === undefined ? undefined : JSON.stringify(cuerpo),
+    })
+    if (respuesta.status === 401) {
+      anunciarExpiracion()
+      throw new ErrorApi('La sesión expiró: vuelva a ingresar', 401)
+    }
+  }
+
+  if (!respuesta.ok) throw new ErrorApi(await mensajeDeError(respuesta), respuesta.status)
+
+  if (respuesta.status === 204) return undefined as T
+  const texto = await respuesta.text()
+  return (texto ? JSON.parse(texto) : undefined) as T
+}
+
+/** Igual que `pedir`, pero un 204 se convierte en `null` para quien lo espera. */
+export async function pedirOpcional<T>(ruta: string, opciones: Opciones = {}): Promise<T | null> {
+  const resultado = await pedir<T | undefined>(ruta, opciones)
+  return resultado ?? null
+}
+
+/**
+ * Sube un archivo.
+ *
+ * Va aparte de `pedir` porque un archivo no es JSON: viaja como `FormData` y
+ * el navegador tiene que poner el `Content-Type` con la frontera del multipart.
+ * Si se lo ponemos nosotros —como hace `pedir` con `application/json`— esa
+ * frontera falta y el servidor recibe un cuerpo que no puede separar.
+ */
+export async function subirArchivo<T>(ruta: string, campo: string, archivo: File): Promise<T> {
+  if (!hayConexion()) throw new SinConexionError()
+
+  const cuerpo = new FormData()
+  cuerpo.append(campo, archivo)
+
+  const enviar = async (token: string | null) =>
+    fetch(`${URL_API}${ruta}`, {
+      method: 'POST',
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+      body: cuerpo,
+    })
+
+  let respuesta: Response
+  try {
+    respuesta = await enviar(await tokenVigente())
+  } catch {
+    throw new SinConexionError('No hay conexión con el servidor')
+  }
+
+  // Subir una foto desde el celular puede tardar, y la sesión puede vencerse
+  // justo mientras sube. Se renueva y se reintenta una vez, igual que `pedir`:
+  // perder la foto por eso obligaría a subir los megas de nuevo.
+  if (respuesta.status === 401) {
+    const nuevo = await renovar()
+    if (!nuevo) {
+      anunciarExpiracion()
+      throw new ErrorApi('La sesión expiró: vuelva a ingresar', 401)
+    }
+    respuesta = await enviar(nuevo)
+  }
+
+  if (!respuesta.ok) throw new ErrorApi(await mensajeDeError(respuesta), respuesta.status)
+  const texto = await respuesta.text()
+  return (texto ? JSON.parse(texto) : undefined) as T
+}
+
+/**
+ * Descarga un archivo generado por el servidor.
+ *
+ * Va aparte de `pedir` porque lo que vuelve no es JSON sino bytes, y porque la
+ * descarga no puede ser un enlace normal: el token viaja en la cabecera
+ * `Authorization`, y un `<a href>` no la lleva. Sin esto habria que pasar la
+ * credencial en la URL, donde queda escrita en el historial del navegador y en
+ * los registros del servidor.
+ *
+ * El nombre del archivo lo pone el servidor en `Content-Disposition`. Se lee de
+ * ahi y no se arma aqui para que el nombre sea el mismo que el reporte declara.
+ */
+export async function descargarArchivo(
+  ruta: string,
+  consulta: Record<string, string | number | boolean | undefined>,
+): Promise<void> {
+  if (!hayConexion()) throw new SinConexionError()
+
+  const url = new URL(`${URL_API}${ruta}`)
+  for (const [clave, valor] of Object.entries(consulta)) {
+    if (valor !== undefined && valor !== '') url.searchParams.set(clave, String(valor))
+  }
+
+  const pedirlo = async (token: string | null) =>
+    fetch(url.toString(), {
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    })
+
+  let respuesta: Response
+  try {
+    respuesta = await pedirlo(await tokenVigente())
+  } catch {
+    throw new SinConexionError('No hay conexión con el servidor')
+  }
+
+  // Un reporte grande tarda, y la sesion puede vencerse mientras se genera.
+  if (respuesta.status === 401) {
+    const nuevo = await renovar()
+    if (!nuevo) {
+      anunciarExpiracion()
+      throw new ErrorApi('La sesión expiró: vuelva a ingresar', 401)
+    }
+    respuesta = await pedirlo(nuevo)
+  }
+
+  if (!respuesta.ok) throw new ErrorApi(await mensajeDeError(respuesta), respuesta.status)
+
+  const blob = await respuesta.blob()
+  const enlace = document.createElement('a')
+  const objeto = URL.createObjectURL(blob)
+  enlace.href = objeto
+  enlace.download = nombreDeLaRespuesta(respuesta) ?? 'reporte'
+  document.body.appendChild(enlace)
+  enlace.click()
+  enlace.remove()
+  // Sin revocar, el blob se queda en memoria hasta recargar la pagina. Con un
+  // reporte de varios megas y unas cuantas descargas seguidas, se nota.
+  URL.revokeObjectURL(objeto)
+}
+
+/** El nombre que el servidor puso en `Content-Disposition`, si lo puso. */
+function nombreDeLaRespuesta(respuesta: Response): string | null {
+  const cabecera = respuesta.headers.get('Content-Disposition')
+  if (!cabecera) return null
+  const coincidencia = /filename="?([^"]+)"?/i.exec(cabecera)
+  return coincidencia ? coincidencia[1] : null
+}
+
+/**
+ * Manda un formulario con archivo SIN sesion.
+ *
+ * Va aparte de `subirArchivo` porque aquel exige credencial, y los formularios
+ * publicos —«Trabaja con nosotros», y luego PQR— los llena gente que no tiene
+ * ni va a crear una cuenta en el sistema del restaurante. Lo que los defiende
+ * no es la sesion sino el limite por IP y el señuelo, que viven en el servidor.
+ *
+ * El `Content-Type` lo pone el navegador a proposito: `FormData` necesita que
+ * la cabecera lleve la frontera del multipart, y ponerla a mano —como hace
+ * `pedir` con JSON— produce un cuerpo que el servidor no puede separar.
+ */
+export async function enviarFormulario<T>(ruta: string, cuerpo: FormData): Promise<T> {
+  if (!hayConexion()) throw new SinConexionError()
+
+  let respuesta: Response
+  try {
+    respuesta = await fetch(`${URL_API}${ruta}`, { method: 'POST', body: cuerpo })
+  } catch {
+    throw new SinConexionError('No hay conexión con el servidor')
+  }
+
+  if (!respuesta.ok) throw new ErrorApi(await mensajeDeError(respuesta), respuesta.status)
+  const texto = await respuesta.text()
+  return (texto ? JSON.parse(texto) : undefined) as T
+}

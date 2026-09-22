@@ -1,0 +1,226 @@
+# Configuración del backend.
+#
+# Nada de lo que cambia entre entornos está escrito aquí: todo entra por
+# variables de entorno. Los valores por defecto que se ven abajo son los de la
+# máquina de desarrollo, y ninguno es un secreto real.
+
+spring:
+  application:
+    name: carlys-backend
+
+  # `produccion` cambia los registros a JSON. Railway lo define en el servicio.
+  profiles:
+    active: ${CARLYS_PERFIL:desarrollo}
+
+  datasource:
+    # Railway entrega DATABASE_URL; en local se apunta al Postgres del docker compose.
+    url: ${DATABASE_URL:jdbc:postgresql://localhost:5432/carlys}
+    username: ${DATABASE_USUARIO:carlys}
+    password: ${DATABASE_CLAVE:carlys}
+    hikari:
+      maximum-pool-size: ${BD_POOL_MAX:10}
+      connection-timeout: 10000
+
+  jpa:
+    hibernate:
+      # El esquema lo manda Flyway. Que Hibernate lo toque sería tener dos
+      # fuentes de verdad y descubrir la diferencia en producción.
+      ddl-auto: validate
+    open-in-view: false
+    # Sin `jdbc.time_zone`: los instantes se guardan en TIMESTAMPTZ, que ya es
+    # absoluto y no necesita ayuda. Forzar la zona hacía que Hibernate
+    # reinterpretara también las columnas TIME, y el horario de domicilios
+    # guardado como 11:30 se leía como 06:30.
+
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+    baseline-on-migrate: false
+
+  jackson:
+    default-property-inclusion: non_null
+
+  servlet:
+    multipart:
+      # Lo que se acepta que entre por la red. El almacen vuelve a revisar el
+      # peso y ademas reduce la imagen; esto solo evita que un archivo enorme
+      # ocupe memoria antes de que nadie lo mire.
+      #
+      # 25 MB y no 12: las fotos de la sesion del restaurante son archivos de
+      # camara de 12 a 18 MB y se suben tal cual, sin recortar. Con el tope
+      # anterior —pensado para la foto de un celular, que anda por los 4 MB—
+      # el administrador recibia un error al subir justo las buenas.
+      max-file-size: 25MB
+      max-request-size: 25MB
+
+server:
+  port: ${PORT:8080}
+  error:
+    include-message: never
+    include-stacktrace: never
+  # Railway y cualquier proxy ponen el HTTPS por delante: sin esto la aplicación
+  # se cree en http y arma mal las URLs absolutas.
+  forward-headers-strategy: framework
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      probes:
+        enabled: true
+
+carlys:
+  # El día operativo y el turno se calculan en esta zona, nunca en UTC.
+  zona-horaria: ${CARLYS_ZONA:America/Bogota}
+
+  reclutamiento:
+    # A quién se le avisa cuando llega una hoja de vida nueva.
+    #
+    # Vacío = no se avisa. Y hoy da igual lo que se ponga: el proyecto no tiene
+    # proveedor de correo, así que el aviso solo queda escrito en la bitácora.
+    # La variable existe ya para que el día que haya proveedor no haya que
+    # tocar código.
+    correo-administrador: ${CARLYS_CORREO_ADMIN:}
+
+    # Días durante los cuales no se acepta otra hoja de vida del mismo
+    # documento. No es sospecha de fraude: la gente vuelve a pulsar el botón
+    # cuando la página tarda. Quien se postuló hace tres meses y no tuvo
+    # respuesta sí tiene derecho a volver a intentarlo.
+    dias-sin-repetir: ${CARLYS_DIAS_SIN_REPETIR:30}
+
+  documentos:
+    # Hojas de vida y adjuntos de PQR.
+    #
+    # EN RAILWAY TIENE QUE APUNTAR A UN VOLUMEN, por lo mismo que las imágenes:
+    # el sistema de archivos del contenedor se borra en cada despliegue, y ahí
+    # se irían las hojas de vida de quienes se postularon esta semana.
+    #
+    # Ojo el día del respaldo: `respaldar.sh` vuelca la base, y estos archivos
+    # no están en la base. Un respaldo completo tiene que llevarse la carpeta.
+    ruta: ${CARLYS_RUTA_DOCUMENTOS:./datos/documentos}
+
+  erp:
+    # Por dónde sale la venta hacia el ERP que la factura (hoy Globalsoft).
+    #
+    #   manual  — no transmite. Deja la venta marcada para que alguien la digite
+    #             en Globalsoft, y la pantalla de conciliación muestra cuáles
+    #             faltan. Es el valor por defecto y el único que se puede usar
+    #             hoy con seguridad, porque nadie ha visto la documentación de
+    #             integración de Globalsoft.
+    #   archivo — deposita un plano por venta en una carpeta para que Globalsoft
+    #             lo importe. Es el camino más probable con un ERP instalado en
+    #             la máquina del restaurante: un archivo cruza esa frontera, una
+    #             conexión HTTP desde la nube no.
+    #   rest    — manda la venta por HTTP. INCOMPLETO: falta el contrato real.
+    #             No lo active todavía.
+    #
+    # Si alguien se equivoca escribiendo esto, arranca el adaptador manual, que
+    # es el que no puede hacer daño.
+    adaptador: ${CARLYS_ERP_ADAPTADOR:manual}
+
+    archivo:
+      # Solo la usa el adaptador `archivo`. En Railway tiene que apuntar a un
+      # volumen, por lo mismo que las imágenes: el disco del contenedor se borra
+      # en cada despliegue, y ahí se irían las ventas sin reportar.
+      carpeta: ${CARLYS_ERP_CARPETA:./datos/erp}
+
+    rest:
+      # Vacías mientras no haya integración. El adaptador rest falla en claro si
+      # se activa sin URL, en vez de intentar contra una dirección vacía.
+      url: ${CARLYS_ERP_URL:}
+      token: ${CARLYS_ERP_TOKEN:}
+
+  imagenes:
+    # Dónde se guardan las fotos de promociones, eventos y galería.
+    #
+    # EN RAILWAY TIENE QUE APUNTAR A UN VOLUMEN. El sistema de archivos normal
+    # del contenedor se borra en cada despliegue: sin volumen, las fotos duran
+    # hasta el siguiente despliegue y el sitio queda con los marcos vacíos.
+    ruta: ${CARLYS_RUTA_IMAGENES:./datos/imagenes}
+
+    # Si estas tres están puestas, las fotos van a Cloudinary y no al disco.
+    # Vacías en desarrollo: la máquina local no necesita cuenta de nadie.
+    #
+    # El secreto NO se escribe aquí ni en ningún archivo del repositorio: entra
+    # por variable de entorno del servicio, igual que el secreto del JWT.
+    cloudinary:
+      nombre: ${CARLYS_CLOUDINARY_NOMBRE:}
+      llave: ${CARLYS_CLOUDINARY_LLAVE:}
+      secreto: ${CARLYS_CLOUDINARY_SECRETO:}
+
+  # Dónde queda el local, para medir qué tan lejos pidió el cliente.
+  #
+  # Es la puerta del restaurante y el mismo par que usa el mapa del sitio
+  # público en config.ts. Los dos tienen que coincidir: si no, el cliente ve un
+  # punto en el mapa y el domicilio se cobra desde otro.
+  #
+  # Es el punto de la ficha del negocio en Google Maps («Carlys Parrilla
+  # Turbaco»). Si el local se muda, se cambia aquí y en config.ts.
+  local:
+    latitud: ${CARLYS_LATITUD:10.3392264}
+    longitud: ${CARLYS_LONGITUD:-75.4154494}
+
+  jwt:
+    # Sin valor por defecto a propósito: si falta, el backend no arranca. Un
+    # secreto de ejemplo funcionando en producción es peor que un fallo visible.
+    secreto: ${CARLYS_JWT_SECRETO}
+    minutos-acceso: ${CARLYS_JWT_MINUTOS:20}
+    dias-refresco: ${CARLYS_JWT_DIAS_REFRESCO:30}
+  cors:
+    # Lista separada por comas. Nunca `*`: el navegador envía el token.
+    origenes: ${CARLYS_CORS_ORIGENES:http://localhost:5173}
+
+  # El paso al panel de la otra sede, sin volver a escribir la clave.
+  cruce:
+    # EL MISMO VALOR EN LAS DOS SEDES, y distinto del de las sesiones.
+    #
+    # Sería lo único que Turbaco y Arjona comparten. No firma ninguna sesión:
+    # solo firma el pase de 30 segundos con que el dueño cruza de un panel al
+    # otro. Separarlo del secreto de las sesiones es lo que evita que un token
+    # cualquiera de una sede valga en la otra, y que la filtración de una
+    # arrastre a la segunda.
+    #
+    # VACÍO POR DEFECTO, y con eso el cruce queda apagado en los dos sentidos:
+    # ni se emiten pases ni se aceptan. Es lo correcto hoy, que hay una sola
+    # sede montada.
+    secreto: ${CARLYS_CRUCE_SECRETO:}
+    # De dónde dice venir el pase. Solo se usa para el registro y para poder
+    # decirle a la persona desde qué sede acaba de llegar.
+    nombre: ${CARLYS_CRUCE_NOMBRE:Carly’s Turbaco}
+    # La API de la OTRA sede, sin barra final.
+    #
+    # Es a donde se manda el cambio cuando el dueño edita su propia cuenta, para
+    # que allá quede igual. Ojo: aquí va el backend de la otra sede, no su sitio
+    # web; el frontend tiene su propia variable con la otra dirección.
+    #
+    # Vacía = no se replica nada, y guardar un usuario funciona como siempre.
+    api-hermana: ${CARLYS_CRUCE_API_HERMANA:}
+
+  # Los anticipos de los canales automatizados, cobrados con un link de pago
+  # de Wompi.
+  #
+  # La URL base es la que decide sandbox o producción: por defecto apunta al
+  # ambiente de pruebas, con llaves de prueba que Wompi entrega sin costo. El
+  # secreto de eventos NO es el mismo que el de integridad del widget: es el
+  # que Wompi muestra junto a la URL del webhook, y firma cada aviso que manda.
+  # Ninguno de los dos se escribe aquí ni en ningún archivo del repositorio.
+  wompi:
+    url-base: ${CARLYS_WOMPI_URL_BASE:https://sandbox.wompi.co/v1}
+    llave-privada: ${CARLYS_WOMPI_LLAVE_PRIVADA:}
+    secreto-eventos: ${CARLYS_WOMPI_SECRETO_EVENTOS:}
+
+  # Cuentas de demostración con clave conocida, para enseñar el sistema.
+  #
+  # Vacío es lo correcto en producción: sin esto el modo no existe. Con esto
+  # puesto, las seis cuentas quedan con esta misma clave en cada arranque y la
+  # pantalla de acceso las muestra escritas. Ver ModoDemostracion.java.
+  demostracion:
+    clave: ${CARLYS_CLAVE_DEMO:}
+
+logging:
+  level:
+    root: ${LOG_NIVEL:INFO}
+    co.carlys: ${LOG_NIVEL_APP:INFO}

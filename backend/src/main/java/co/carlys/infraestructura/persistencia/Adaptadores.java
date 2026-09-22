@@ -1,0 +1,864 @@
+package co.carlys.infraestructura.persistencia;
+
+import co.carlys.dominio.ajustes.Ajustes;
+import co.carlys.dominio.caja.CierreCaja;
+import co.carlys.dominio.carta.CategoriaCarta;
+import co.carlys.dominio.carta.ItemCarta;
+import co.carlys.dominio.cobro.Pago;
+import co.carlys.dominio.canal.Canal;
+import co.carlys.dominio.comanda.Orden;
+import co.carlys.dominio.erp.EnvioErp;
+import co.carlys.dominio.institucional.ContenidoInstitucional;
+import co.carlys.dominio.pago.EstadoPagoOnline;
+import co.carlys.dominio.pago.PagoOnline;
+import co.carlys.dominio.pedido.ZonaDomicilio;
+import co.carlys.dominio.personal.Usuario;
+import co.carlys.dominio.pqr.FiltroPqr;
+import co.carlys.dominio.pqr.Radicado;
+import co.carlys.dominio.pqr.SolicitudPqr;
+import co.carlys.dominio.publicacion.Publicacion;
+import co.carlys.dominio.reclutamiento.EstadoPostulacion;
+import co.carlys.dominio.reclutamiento.FiltroPostulaciones;
+import co.carlys.dominio.reclutamiento.Pagina;
+import co.carlys.dominio.reclutamiento.Postulacion;
+import co.carlys.dominio.puertos.GeneradorIds;
+import co.carlys.dominio.puertos.Reloj;
+import co.carlys.dominio.puertos.Repositorios;
+import co.carlys.dominio.reserva.Reserva;
+import co.carlys.dominio.salon.Mesa;
+import co.carlys.dominio.sitio.FichaSitio;
+import co.carlys.dominio.sitio.FranjaHorario;
+import co.carlys.infraestructura.persistencia.dao.DaoAjustes;
+import co.carlys.infraestructura.persistencia.dao.DaoCategorias;
+import co.carlys.infraestructura.persistencia.dao.DaoCierres;
+import co.carlys.infraestructura.persistencia.dao.DaoItemsCarta;
+import co.carlys.infraestructura.persistencia.dao.DaoMesas;
+import co.carlys.infraestructura.persistencia.dao.DaoOrdenes;
+import co.carlys.infraestructura.persistencia.dao.DaoContenidoInstitucional;
+import co.carlys.infraestructura.persistencia.dao.DaoEnviosErp;
+import co.carlys.infraestructura.persistencia.dao.DaoFichaSitio;
+import co.carlys.infraestructura.persistencia.dao.DaoFranjasHorario;
+import co.carlys.infraestructura.persistencia.dao.DaoPagos;
+import co.carlys.infraestructura.persistencia.dao.DaoPagosOnline;
+import co.carlys.infraestructura.persistencia.dao.DaoConsecutivosPqr;
+import co.carlys.infraestructura.persistencia.dao.DaoPostulaciones;
+import co.carlys.infraestructura.persistencia.dao.DaoSolicitudesPqr;
+import co.carlys.infraestructura.persistencia.dao.DaoPublicaciones;
+import co.carlys.infraestructura.persistencia.dao.DaoReservas;
+import co.carlys.infraestructura.persistencia.dao.DaoUsuarios;
+import co.carlys.infraestructura.persistencia.dao.DaoZonasDomicilio;
+import co.carlys.infraestructura.persistencia.filas.FilaAjustes;
+import co.carlys.infraestructura.persistencia.filas.FilaCategoria;
+import co.carlys.infraestructura.persistencia.filas.FilaCierreCaja;
+import co.carlys.infraestructura.persistencia.filas.FilaItemCarta;
+import co.carlys.infraestructura.persistencia.filas.FilaMesa;
+import co.carlys.infraestructura.persistencia.filas.FilaOrden;
+import co.carlys.infraestructura.persistencia.filas.FilaContenidoInstitucional;
+import co.carlys.infraestructura.persistencia.filas.FilaEnvioErp;
+import co.carlys.infraestructura.persistencia.filas.FilaFichaSitio;
+import co.carlys.infraestructura.persistencia.filas.FilaFranjaHorario;
+import co.carlys.infraestructura.persistencia.filas.FilaPago;
+import co.carlys.infraestructura.persistencia.filas.FilaPagoOnline;
+import co.carlys.infraestructura.persistencia.filas.FilaConsecutivoPqr;
+import co.carlys.infraestructura.persistencia.filas.FilaPostulacion;
+import co.carlys.infraestructura.persistencia.filas.FilaSolicitudPqr;
+import co.carlys.infraestructura.persistencia.filas.FilaPublicacion;
+import co.carlys.infraestructura.persistencia.filas.FilaReserva;
+import co.carlys.infraestructura.persistencia.filas.FilaUsuario;
+import co.carlys.infraestructura.persistencia.filas.FilaZonaDomicilio;
+import java.time.Instant;
+import java.time.LocalDate;
+import java.time.ZoneId;
+import java.util.Comparator;
+import java.util.List;
+import java.util.Optional;
+import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.data.domain.Limit;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.stereotype.Repository;
+
+/**
+ * Implementaciones de los puertos del dominio contra PostgreSQL.
+ *
+ * Cada adaptador se limita a traducir: no toma decisiones de negocio. Si algun
+ * dia el motor cambia, este archivo es lo unico que hay que reescribir.
+ */
+public final class Adaptadores {
+
+  private Adaptadores() {}
+
+  /**
+   * Un filtro exacto como patron LIKE. Sin filtro, el comodin que lo acepta todo.
+   *
+   * Las bandejas de PQR y postulaciones combinan filtros opcionales, y el
+   * `(:x is null or columna = :x)` de manual no funciona contra PostgreSQL: un
+   * parametro que no toca ninguna columna no tiene tipo deducible y la consulta
+   * falla entera antes de ejecutarse. Con LIKE, el tipo lo da la columna.
+   */
+  private static String comodinSi(String valor) {
+    return valor == null || valor.isBlank() ? "%" : valor;
+  }
+
+  /**
+   * El texto que escribio el usuario, como patron de busqueda.
+   *
+   * Se pasa a minusculas aqui y no en la consulta porque la consulta ya aplica
+   * `lower()` a la columna: hacerlo tambien al parametro lo dejaria sin tipo.
+   *
+   * Los comodines que venga escribiendo el usuario se escapan con `!`, que es
+   * el caracter declarado en el `escape` de la consulta. Sin eso, buscar «100%»
+   * devuelve la tabla entera y un `_` suelto casa con cualquier letra.
+   */
+  /**
+   * El inicio del rango, o el principio de los tiempos si no hay filtro.
+   *
+   * Por la misma razon que `comodinSi`: un parametro null no tiene tipo
+   * deducible para PostgreSQL y tumba la consulta entera. Un instante concreto
+   * comparado contra la columna si lo tiene.
+   */
+  private static Instant desdeOSiempre(LocalDate desde, ZoneId zona) {
+    return desde == null ? Instant.EPOCH : desde.atStartOfDay(zona).toInstant();
+  }
+
+  /** El fin del rango, o una fecha que ninguna fila va a alcanzar. */
+  private static Instant hastaOSiempre(LocalDate hasta, ZoneId zona) {
+    return hasta == null
+        ? LocalDate.of(3000, 1, 1).atStartOfDay(zona).toInstant()
+        : hasta.plusDays(1).atStartOfDay(zona).toInstant();
+  }
+
+  private static String patronDeBusqueda(String busqueda) {
+    if (busqueda == null || busqueda.isBlank()) return "%";
+    String limpio =
+        busqueda.trim().toLowerCase().replace("!", "!!").replace("%", "!%").replace("_", "!_");
+    return "%" + limpio + "%";
+  }
+
+  // -------------------------------------------------------------------------
+
+  @Repository
+  public static class Usuarios implements Repositorios.DeUsuarios {
+    private final DaoUsuarios dao;
+
+    public Usuarios(DaoUsuarios dao) {
+      this.dao = dao;
+    }
+
+    @Override
+    public List<Usuario> listar() {
+      return dao.findAll().stream()
+          .map(FilaUsuario::aDominio)
+          .sorted(Comparator.comparing(Usuario::getNombre))
+          .toList();
+    }
+
+    @Override
+    public Optional<Usuario> porId(String id) {
+      return dao.findById(id).map(FilaUsuario::aDominio);
+    }
+
+    @Override
+    public Optional<Usuario> porNombreDeUsuario(String usuario) {
+      return dao.porNombreDeUsuario(usuario).map(FilaUsuario::aDominio);
+    }
+
+    @Override
+    public Usuario guardar(Usuario usuario) {
+      return dao.save(FilaUsuario.deDominio(usuario)).aDominio();
+    }
+
+    @Override
+    public boolean hayAlguno() {
+      return dao.count() > 0;
+    }
+  }
+
+  // -------------------------------------------------------------------------
+
+  @Repository
+  public static class Mesas implements Repositorios.DeMesas {
+    private final DaoMesas dao;
+
+    public Mesas(DaoMesas dao) {
+      this.dao = dao;
+    }
+
+    @Override
+    public List<Mesa> listar() {
+      return dao.findAllByOrderByNumeroAsc().stream().map(FilaMesa::aDominio).toList();
+    }
+
+    @Override
+    public Optional<Mesa> porId(String id) {
+      return dao.findById(id).map(FilaMesa::aDominio);
+    }
+
+    @Override
+    public Mesa guardar(Mesa mesa) {
+      return dao.save(FilaMesa.deDominio(mesa)).aDominio();
+    }
+
+    @Override
+    public void eliminar(String id) {
+      dao.deleteById(id);
+    }
+  }
+
+  // -------------------------------------------------------------------------
+
+  @Repository
+  public static class Carta implements Repositorios.DeCarta {
+    private final DaoCategorias daoCategorias;
+    private final DaoItemsCarta daoItems;
+
+    public Carta(DaoCategorias daoCategorias, DaoItemsCarta daoItems) {
+      this.daoCategorias = daoCategorias;
+      this.daoItems = daoItems;
+    }
+
+    @Override
+    public List<CategoriaCarta> listarCategorias() {
+      return daoCategorias.findAllByOrderByOrdenAsc().stream().map(FilaCategoria::aDominio).toList();
+    }
+
+    @Override
+    public CategoriaCarta guardarCategoria(CategoriaCarta categoria) {
+      return daoCategorias.save(FilaCategoria.deDominio(categoria)).aDominio();
+    }
+
+    @Override
+    public List<ItemCarta> listarItems() {
+      return daoItems.findAllByOrderByNombreAsc().stream().map(FilaItemCarta::aDominio).toList();
+    }
+
+    @Override
+    public Optional<ItemCarta> porId(String id) {
+      return daoItems.findById(id).map(FilaItemCarta::aDominio);
+    }
+
+    @Override
+    public ItemCarta guardarItem(ItemCarta item) {
+      return daoItems.save(FilaItemCarta.deDominio(item)).aDominio();
+    }
+
+    @Override
+    public void eliminarItem(String id) {
+      daoItems.deleteById(id);
+    }
+  }
+
+  // -------------------------------------------------------------------------
+
+  @Repository
+  public static class Publicaciones implements Repositorios.DePublicaciones {
+    private final DaoPublicaciones dao;
+
+    public Publicaciones(DaoPublicaciones dao) {
+      this.dao = dao;
+    }
+
+    @Override
+    public List<Publicacion> listar() {
+      return dao.findAllByOrderByOrdenAscCreadaEnDesc().stream()
+          .map(FilaPublicacion::aDominio)
+          .toList();
+    }
+
+    @Override
+    public Optional<Publicacion> porId(String id) {
+      return dao.findById(id).map(FilaPublicacion::aDominio);
+    }
+
+    @Override
+    public Publicacion guardar(Publicacion publicacion) {
+      return dao.save(FilaPublicacion.deDominio(publicacion)).aDominio();
+    }
+
+    @Override
+    public void eliminar(String id) {
+      dao.deleteById(id);
+    }
+  }
+
+  // -------------------------------------------------------------------------
+
+  @Repository
+  public static class Ordenes implements Repositorios.DeOrdenes {
+    private final DaoOrdenes dao;
+    private final Reloj reloj;
+
+    public Ordenes(DaoOrdenes dao, Reloj reloj) {
+      this.dao = dao;
+      this.reloj = reloj;
+    }
+
+    @Override
+    public List<Orden> listar() {
+      return dao.findAll().stream().map(FilaOrden::aDominio).toList();
+    }
+
+    @Override
+    public Optional<Orden> porId(String id) {
+      return dao.findById(id).map(FilaOrden::aDominio);
+    }
+
+    @Override
+    public List<Orden> activas() {
+      return dao.activas().stream().map(FilaOrden::aDominio).toList();
+    }
+
+    @Override
+    public List<Orden> abiertasDesde(Instant desde) {
+      return dao.findByAbiertaEnGreaterThanEqualOrderByAbiertaEnAsc(desde).stream()
+          .map(FilaOrden::aDominio)
+          .toList();
+    }
+
+    @Override
+    public Orden guardar(Orden orden) {
+      // El dia operativo se fija al abrir y no se recalcula: si la comanda se
+      // cobra pasada la medianoche debe seguir contando para el cierre de la
+      // noche en que se abrio.
+      FilaOrden fila = dao.findById(orden.getId()).orElseGet(FilaOrden::new);
+      LocalDate dia =
+          fila.getDiaOperativo() != null ? fila.getDiaOperativo() : reloj.diaDe(orden.getAbiertaEn());
+      return dao.save(fila.volcar(orden, dia)).aDominio();
+    }
+  }
+
+  // -------------------------------------------------------------------------
+
+  @Repository
+  public static class Pagos implements Repositorios.DePagos {
+    private final DaoPagos dao;
+
+    public Pagos(DaoPagos dao) {
+      this.dao = dao;
+    }
+
+    @Override
+    public List<Pago> listar() {
+      return dao.findAll().stream().map(FilaPago::aDominio).toList();
+    }
+
+    @Override
+    public Optional<Pago> porId(String id) {
+      return dao.findById(id).map(FilaPago::aDominio);
+    }
+
+    @Override
+    public List<Pago> entre(Instant desde, Instant hasta) {
+      return dao.findByFechaHoraBetweenOrderByFechaHoraDesc(desde, hasta).stream()
+          .map(FilaPago::aDominio)
+          .toList();
+    }
+
+    @Override
+    public Pago guardar(Pago pago) {
+      return dao.save(FilaPago.deDominio(pago)).aDominio();
+    }
+  }
+
+  // -------------------------------------------------------------------------
+
+  @Repository
+  public static class PagosOnline implements Repositorios.DePagosOnline {
+    private final DaoPagosOnline dao;
+
+    public PagosOnline(DaoPagosOnline dao) {
+      this.dao = dao;
+    }
+
+    @Override
+    public Optional<PagoOnline> porId(String id) {
+      return dao.findById(id).map(FilaPagoOnline::aDominio);
+    }
+
+    @Override
+    public Optional<PagoOnline> porReferencia(String referencia) {
+      return dao.findByReferencia(referencia).map(FilaPagoOnline::aDominio);
+    }
+
+    @Override
+    public List<PagoOnline> pendientesVencidosAntesDe(Instant instante) {
+      return dao.findByEstadoAndExpiraEnBefore(EstadoPagoOnline.PENDIENTE.codigo(), instante).stream()
+          .map(FilaPagoOnline::aDominio)
+          .toList();
+    }
+
+    @Override
+    public List<PagoOnline> creadosEntre(Instant desde, Instant hasta) {
+      return dao.findByCreadaEnBetweenOrderByCreadaEnDesc(desde, hasta).stream()
+          .map(FilaPagoOnline::aDominio)
+          .toList();
+    }
+
+    @Override
+    public PagoOnline guardar(PagoOnline pago) {
+      return dao.save(FilaPagoOnline.deDominio(pago)).aDominio();
+    }
+  }
+
+  // -------------------------------------------------------------------------
+
+  @Repository
+  public static class EnviosErp implements Repositorios.DeEnviosErp {
+    private final DaoEnviosErp dao;
+
+    public EnviosErp(DaoEnviosErp dao) {
+      this.dao = dao;
+    }
+
+    @Override
+    public Optional<EnvioErp> porId(String id) {
+      return dao.findById(id).map(FilaEnvioErp::aDominio);
+    }
+
+    @Override
+    public Optional<EnvioErp> porPago(String pagoId) {
+      return dao.findByPagoId(pagoId).map(FilaEnvioErp::aDominio);
+    }
+
+    @Override
+    public List<EnvioErp> pendientesListos(Instant ahora, int limite) {
+      return dao.pendientesListos(ahora, Limit.of(limite)).stream()
+          .map(FilaEnvioErp::aDominio)
+          .toList();
+    }
+
+    @Override
+    public List<EnvioErp> entre(Instant desde, Instant hasta) {
+      return dao.entre(desde, hasta).stream().map(FilaEnvioErp::aDominio).toList();
+    }
+
+    /**
+     * Guarda sobre la fila existente si la hay.
+     *
+     * Un `save` con la fila reconstruida desde cero funcionaria, pero perderia
+     * las columnas que el dominio no expone el dia que se agregue alguna. Leer
+     * y volcar deja esa puerta cerrada.
+     */
+    @Override
+    public EnvioErp guardar(EnvioErp envio) {
+      FilaEnvioErp fila = dao.findById(envio.getId()).orElseGet(FilaEnvioErp::new);
+      fila.volcar(envio);
+      return dao.save(fila).aDominio();
+    }
+  }
+
+  // -------------------------------------------------------------------------
+
+  @Repository
+  public static class Postulaciones implements Repositorios.DePostulaciones {
+    private static final ZoneId ZONA = ZoneId.of("America/Bogota");
+
+    private final DaoPostulaciones dao;
+
+    public Postulaciones(DaoPostulaciones dao) {
+      this.dao = dao;
+    }
+
+    @Override
+    public Optional<Postulacion> porId(String id) {
+      return dao.findById(id).map(FilaPostulacion::aDominio);
+    }
+
+    /**
+     * Traduce el filtro del dominio a lo que entiende Spring Data.
+     *
+     * Los enum viajan a la consulta como su `name()` porque asi se guardan en
+     * la columna. Las fechas locales se convierten a instantes en la zona del
+     * restaurante: quien filtra por «el 24 de agosto» quiere el dia del local,
+     * no una ventana UTC que le corte la noche.
+     */
+    @Override
+    public Pagina<Postulacion> buscar(FiltroPostulaciones filtro) {
+      Page<FilaPostulacion> pagina =
+          dao.buscar(
+              // Patrones LIKE, no valores sueltos: es lo que permite a
+              // PostgreSQL deducir el tipo del parámetro. Ver la nota del DAO.
+              comodinSi(filtro.estado() == null ? null : filtro.estado().name()),
+              comodinSi(filtro.cargo() == null ? null : filtro.cargo().name()),
+              desdeOSiempre(filtro.desde(), ZONA),
+              // Exclusivo por arriba: el dia `hasta` entra completo.
+              hastaOSiempre(filtro.hasta(), ZONA),
+              patronDeBusqueda(filtro.busqueda()),
+              PageRequest.of(filtro.pagina(), filtro.tamano()));
+
+      return new Pagina<>(
+          pagina.getContent().stream().map(FilaPostulacion::aDominio).toList(),
+          filtro.pagina(),
+          filtro.tamano(),
+          pagina.getTotalElements());
+    }
+
+    @Override
+    public long sinRevisar() {
+      return dao.countByEstado(EstadoPostulacion.RECIBIDA.name());
+    }
+
+    @Override
+    public List<Postulacion> delDocumentoDesde(String numeroDocumento, Instant desde) {
+      return dao.findByNumeroDocumentoAndFechaPostulacionAfter(numeroDocumento, desde).stream()
+          .map(FilaPostulacion::aDominio)
+          .toList();
+    }
+
+    @Override
+    public List<Postulacion> entre(Instant desde, Instant hasta) {
+      return dao.findByFechaPostulacionBetweenOrderByFechaPostulacionDesc(desde, hasta).stream()
+          .map(FilaPostulacion::aDominio)
+          .toList();
+    }
+
+    @Override
+    public Postulacion guardar(Postulacion postulacion) {
+      FilaPostulacion fila = dao.findById(postulacion.getId()).orElseGet(FilaPostulacion::new);
+      fila.volcar(postulacion);
+      return dao.save(fila).aDominio();
+    }
+
+    @Override
+    public void eliminar(String id) {
+      dao.deleteById(id);
+    }
+  }
+
+  // -------------------------------------------------------------------------
+
+  @Repository
+  public static class SolicitudesPqr implements Repositorios.DeSolicitudesPqr {
+    private static final ZoneId ZONA_PQR = ZoneId.of("America/Bogota");
+
+    private final DaoSolicitudesPqr dao;
+    private final DaoConsecutivosPqr consecutivos;
+
+    public SolicitudesPqr(DaoSolicitudesPqr dao, DaoConsecutivosPqr consecutivos) {
+      this.dao = dao;
+      this.consecutivos = consecutivos;
+    }
+
+    @Override
+    public Optional<SolicitudPqr> porId(String id) {
+      return dao.findById(id).map(FilaSolicitudPqr::aDominio);
+    }
+
+    @Override
+    public Optional<SolicitudPqr> porRadicadoYCorreo(String radicado, String email) {
+      return dao.porRadicadoYCorreo(radicado, email).map(FilaSolicitudPqr::aDominio);
+    }
+
+    @Override
+    public Pagina<SolicitudPqr> buscar(FiltroPqr filtro) {
+      Page<FilaSolicitudPqr> pagina =
+          dao.buscar(
+              // Ver la nota del DAO: patrones LIKE, nunca valores sueltos.
+              comodinSi(filtro.tipo() == null ? null : filtro.tipo().name()),
+              comodinSi(filtro.estado() == null ? null : filtro.estado().name()),
+              desdeOSiempre(filtro.desde(), ZONA_PQR),
+              hastaOSiempre(filtro.hasta(), ZONA_PQR),
+              patronDeBusqueda(filtro.busqueda()),
+              PageRequest.of(filtro.pagina(), filtro.tamano()));
+
+      return new Pagina<>(
+          pagina.getContent().stream().map(FilaSolicitudPqr::aDominio).toList(),
+          filtro.pagina(),
+          filtro.tamano(),
+          pagina.getTotalElements());
+    }
+
+    @Override
+    public long abiertas() {
+      return dao.abiertas();
+    }
+
+    @Override
+    public List<SolicitudPqr> porVencerHasta(LocalDate limite) {
+      return dao.porVencerHasta(limite).stream().map(FilaSolicitudPqr::aDominio).toList();
+    }
+
+    @Override
+    public List<SolicitudPqr> entre(Instant desde, Instant hasta) {
+      return dao.findByFechaRadicacionBetweenOrderByFechaRadicacionDesc(desde, hasta).stream()
+          .map(FilaSolicitudPqr::aDominio)
+          .toList();
+    }
+
+    @Override
+    public SolicitudPqr guardar(SolicitudPqr solicitud) {
+      FilaSolicitudPqr fila = dao.findById(solicitud.getId()).orElseGet(FilaSolicitudPqr::new);
+      fila.volcar(solicitud);
+      return dao.save(fila).aDominio();
+    }
+
+    /**
+     * El siguiente radicado del año, bajo bloqueo del contador.
+     *
+     * El primer dia del año la fila no existe todavia y hay que crearla. Ese
+     * insert puede perder una carrera contra otra peticion simultanea —las dos
+     * ven que no hay fila y las dos insertan—, y la que pierde choca contra la
+     * clave primaria. Se atrapa y se reintenta una vez: para entonces la fila
+     * ya existe y el bloqueo funciona normalmente.
+     */
+    @Override
+    public Radicado siguienteRadicado(int ano) {
+      FilaConsecutivoPqr contador = consecutivos.bloquear(ano);
+      if (contador == null) {
+        try {
+          contador = consecutivos.saveAndFlush(new FilaConsecutivoPqr(ano, 0));
+        } catch (DataIntegrityViolationException carrera) {
+          contador = consecutivos.bloquear(ano);
+          if (contador == null) throw carrera;
+        }
+      }
+      int siguiente = contador.getUltimo() + 1;
+      contador.setUltimo(siguiente);
+      consecutivos.saveAndFlush(contador);
+      return new Radicado(ano, siguiente);
+    }
+  }
+
+  // -------------------------------------------------------------------------
+
+  @Repository
+  public static class ContenidoInstitucionalRepo
+      implements Repositorios.DeContenidoInstitucional {
+    private final DaoContenidoInstitucional dao;
+
+    public ContenidoInstitucionalRepo(DaoContenidoInstitucional dao) {
+      this.dao = dao;
+    }
+
+    @Override
+    public List<ContenidoInstitucional> listar() {
+      return dao.findAllByOrderByOrdenAsc().stream()
+          .map(FilaContenidoInstitucional::aDominio)
+          .toList();
+    }
+
+    @Override
+    public List<ContenidoInstitucional> visibles() {
+      return dao.findByVisibleTrueOrderByOrdenAsc().stream()
+          .map(FilaContenidoInstitucional::aDominio)
+          .toList();
+    }
+
+    @Override
+    public Optional<ContenidoInstitucional> porClave(String clave) {
+      return dao.findById(clave).map(FilaContenidoInstitucional::aDominio);
+    }
+
+    /**
+     * Guarda sobre la fila existente.
+     *
+     * Nunca crea claves nuevas por este camino: las secciones las define una
+     * migracion, no el formulario. Si alguien manda una clave desconocida, el
+     * servicio ya lo rechazo antes de llegar aqui.
+     */
+    @Override
+    public ContenidoInstitucional guardar(ContenidoInstitucional contenido) {
+      FilaContenidoInstitucional fila =
+          dao.findById(contenido.getClave()).orElseGet(FilaContenidoInstitucional::new);
+      fila.volcar(contenido);
+      return dao.save(fila).aDominio();
+    }
+  }
+
+  // -------------------------------------------------------------------------
+
+  @Repository
+  public static class Reservas implements Repositorios.DeReservas {
+    private final DaoReservas dao;
+
+    public Reservas(DaoReservas dao) {
+      this.dao = dao;
+    }
+
+    @Override
+    public List<Reserva> listar() {
+      return dao.findAllByOrderByFechaHoraAsc().stream().map(FilaReserva::aDominio).toList();
+    }
+
+    @Override
+    public Optional<Reserva> porId(String id) {
+      return dao.findById(id).map(FilaReserva::aDominio);
+    }
+
+    @Override
+    public Reserva guardar(Reserva reserva) {
+      return dao.save(FilaReserva.deDominio(reserva)).aDominio();
+    }
+  }
+
+  // -------------------------------------------------------------------------
+
+  @Repository
+  public static class ZonasDomicilio implements Repositorios.DeZonasDomicilio {
+    private final DaoZonasDomicilio dao;
+
+    public ZonasDomicilio(DaoZonasDomicilio dao) {
+      this.dao = dao;
+    }
+
+    @Override
+    public List<ZonaDomicilio> listar() {
+      return dao.findAllByOrderByOrdenAsc().stream().map(FilaZonaDomicilio::aDominio).toList();
+    }
+
+    @Override
+    public Optional<ZonaDomicilio> porId(String id) {
+      return dao.findById(id).map(FilaZonaDomicilio::aDominio);
+    }
+
+    @Override
+    public ZonaDomicilio guardar(ZonaDomicilio zona) {
+      return dao.save(FilaZonaDomicilio.deDominio(zona)).aDominio();
+    }
+
+    @Override
+    public void eliminar(String id) {
+      dao.deleteById(id);
+    }
+  }
+
+  // -------------------------------------------------------------------------
+
+  @Repository
+  public static class Cierres implements Repositorios.DeCierres {
+    private final DaoCierres dao;
+
+    public Cierres(DaoCierres dao) {
+      this.dao = dao;
+    }
+
+    @Override
+    public List<CierreCaja> listar() {
+      return dao.findAllByOrderByFechaHoraDesc().stream().map(FilaCierreCaja::aDominio).toList();
+    }
+
+    @Override
+    public CierreCaja guardar(CierreCaja cierre) {
+      return dao.save(FilaCierreCaja.deDominio(cierre)).aDominio();
+    }
+  }
+
+  // -------------------------------------------------------------------------
+
+  @Repository
+  public static class FichaSitioRepo implements Repositorios.DeFichaSitio {
+    private final DaoFichaSitio dao;
+    private final DaoFranjasHorario franjas;
+    private final GeneradorIds ids;
+
+    public FichaSitioRepo(DaoFichaSitio dao, DaoFranjasHorario franjas, GeneradorIds ids) {
+      this.dao = dao;
+      this.franjas = franjas;
+      this.ids = ids;
+    }
+
+    private FilaFichaSitio fila() {
+      return dao.findById(FilaFichaSitio.UNICA)
+          .orElseThrow(
+              () -> new IllegalStateException("La ficha del sitio no existe: revise las migraciones"));
+    }
+
+    @Override
+    public FichaSitio leer() {
+      FichaSitio ficha = fila().aDominio();
+      ficha.setHorario(
+          franjas.findAllByOrderByOrdenAsc().stream().map(FilaFranjaHorario::aDominio).toList());
+      return ficha;
+    }
+
+    /**
+     * Reescribe la ficha y el horario entero.
+     *
+     * Las franjas se borran y se vuelven a insertar en vez de casarlas una a
+     * una porque no tienen identidad propia: nadie enlaza a «la franja del
+     * domingo», solo se lee la lista en orden. Casarlas obligaria a inventarle
+     * una llave estable a un renglon de texto que el dueño reescribe entero.
+     *
+     * <p>Las nuevas llevan identificador NUEVO y no `fh-1`, `fh-2`... Repetir
+     * los de las que se acaban de borrar es lo que rompe este metodo: el borrado
+     * es masivo y no vacia el contexto de persistencia, asi que guardar con un
+     * id que sigue ahi dentro se traduce en un UPDATE contra una fila que ya no
+     * existe. Con identificadores nuevos el guardado solo puede ser un INSERT.
+     */
+    @Override
+    public FichaSitio guardar(FichaSitio ficha) {
+      FilaFichaSitio fila = fila();
+      fila.volcar(ficha);
+      dao.save(fila);
+
+      franjas.deleteAllInBatch();
+      List<FranjaHorario> horario = ficha.getHorario();
+      for (int i = 0; i < horario.size(); i++) {
+        franjas.save(new FilaFranjaHorario(ids.nuevo("fh"), horario.get(i), i + 1));
+      }
+      franjas.flush();
+
+      // Se relee de la base y no se devuelve `ficha`: asi lo que sale de aqui es
+      // lo que quedo escrito, con el orden que de verdad tienen las franjas.
+      return leer();
+    }
+  }
+
+  // -------------------------------------------------------------------------
+
+  @Repository
+  public static class AjustesRepo implements Repositorios.DeAjustes {
+    private final DaoAjustes dao;
+    private final DaoOrdenes ordenes;
+    private final Reloj reloj;
+
+    public AjustesRepo(DaoAjustes dao, DaoOrdenes ordenes, Reloj reloj) {
+      this.dao = dao;
+      this.ordenes = ordenes;
+      this.reloj = reloj;
+    }
+
+    private FilaAjustes fila() {
+      return dao.findById(FilaAjustes.UNICA)
+          .orElseThrow(() -> new IllegalStateException("La fila de ajustes no existe: revise las migraciones"));
+    }
+
+    @Override
+    public Ajustes leer() {
+      return fila().aDominio();
+    }
+
+    @Override
+    public Ajustes guardar(Ajustes ajustes) {
+      FilaAjustes fila = fila();
+      fila.volcar(ajustes);
+      return dao.save(fila).aDominio();
+    }
+
+    /**
+     * El consecutivo se entrega con la fila bloqueada y dentro de la misma
+     * transaccion que crea la comanda. Una secuencia de PostgreSQL seria mas
+     * simple pero dejaria huecos cuando una transaccion se revierte, y el
+     * consecutivo del comprobante no puede tener saltos.
+     *
+     * El numero sale del mayor entre lo que dice el contador y lo que de verdad
+     * hay en la base. Fiarse solo del contador costaba caro: cuando el dia
+     * cambiaba volvia a 1, y si ese dia ya tenia comandas —una real que
+     * sobrevivio al retiro de los datos de demostracion, un respaldo
+     * restaurado— la llave (dia_operativo, numero) rechazaba el insert. En el
+     * arranque eso tumbaba el sistema entero; en plena venta habria dejado al
+     * restaurante sin poder abrir una comanda.
+     */
+    @Override
+    public int siguienteConsecutivo() {
+      FilaAjustes fila = dao.bloquearParaConsecutivo(FilaAjustes.UNICA);
+      LocalDate hoy = reloj.hoy();
+      int contador = hoy.equals(fila.getFechaConsecutivo()) ? fila.getConsecutivoOrden() : 0;
+      int siguiente = Math.max(contador, ordenes.maximoNumeroDe(hoy)) + 1;
+      fila.setFechaConsecutivo(hoy);
+      fila.setConsecutivoOrden(siguiente);
+      dao.saveAndFlush(fila);
+      return siguiente;
+    }
+  }
+}

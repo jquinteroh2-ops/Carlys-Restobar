@@ -1,0 +1,8 @@
+target/
+.env
+*.log
+respaldos/
+
+# Archivos que suben los usuarios (hojas de vida, adjuntos de PQR, fotos).
+# Son datos personales: nunca van al repositorio.
+datos/

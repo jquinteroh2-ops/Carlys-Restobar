@@ -1,0 +1,14 @@
+node_modules
+fotos-menu
+dist
+dist-ssr
+*.local
+.vite
+.DS_Store
+*.log
+tsconfig.tsbuildinfo
+.env
+.env.local
+
+# Clases compiladas de los scripts sueltos de mantenimiento.
+*.class
