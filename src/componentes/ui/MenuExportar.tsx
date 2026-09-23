@@ -4,7 +4,7 @@ import { descargarReporte } from '@/compartido/mockApi'
 import { useAvisos } from './Avisos'
 
 interface Props {
-  /** El reporte a descargar: `ventas`, `productos`, `cierres`, `conciliacion`… */
+  /** El reporte a descargar: `ventas`, `productos`, `cierres`… */
   tipo: string
   desde: string
   hasta: string

@@ -35,7 +35,6 @@ import CartaAdmin from '@/admin/CartaAdmin'
 import Publicaciones from '@/admin/Publicaciones'
 import Ventas from '@/admin/Ventas'
 import Cierre from '@/admin/Cierre'
-import Conciliacion from '@/admin/Conciliacion'
 import Postulaciones from '@/admin/Postulaciones'
 import PqrAdmin from '@/admin/Pqr'
 import InstitucionalAdmin from '@/admin/Institucional'
@@ -208,14 +207,6 @@ export default function App() {
                 element={
                   <GuardaRuta roles={['administrador']}>
                     <Postulaciones />
-                  </GuardaRuta>
-                }
-              />
-              <Route
-                path="conciliacion"
-                element={
-                  <GuardaRuta roles={['administrador']}>
-                    <Conciliacion />
                   </GuardaRuta>
                 }
               />

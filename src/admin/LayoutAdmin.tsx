@@ -1,5 +1,5 @@
 import { NavLink, Outlet, useLocation } from 'react-router-dom'
-import { BarChart3, BookOpen, CalendarClock, FileCheck2, LayoutDashboard, Megaphone, Receipt, FileText, MessageSquare, Settings, Users, Wallet } from 'lucide-react'
+import { BarChart3, BookOpen, CalendarClock, LayoutDashboard, Megaphone, Receipt, FileText, MessageSquare, Settings, Users, Wallet } from 'lucide-react'
 import * as api from '@/compartido/mockApi'
 import { useSesionActiva } from '@/compartido/auth'
 import { useSyncedState } from '@/compartido/useSyncedState'
@@ -37,8 +37,6 @@ const SECCIONES = [
   { ruta: '/admin/publicaciones', etiqueta: 'Publicaciones', icono: Megaphone, exacta: false, soloAdmin: true },
   { ruta: '/admin/ventas', etiqueta: 'Ventas', icono: Receipt, exacta: false, soloAdmin: false },
   { ruta: '/admin/cierre', etiqueta: 'Cierre de caja', icono: Wallet, exacta: false, soloAdmin: false },
-  // Muestra la venta completa del periodo: es informacion de cierre contable.
-  { ruta: '/admin/conciliacion', etiqueta: 'Conciliación', icono: FileCheck2, exacta: false, soloAdmin: true },
   // Hojas de vida: datos personales de gente que confio en el restaurante. Solo el dueno.
   { ruta: '/admin/postulaciones', etiqueta: 'Postulaciones', icono: Users, exacta: false, soloAdmin: true, pendientes: api.postulacionesSinRevisar },
   // PQR: lleva nombre, correo y a veces telefono de un cliente, ademas de lo
