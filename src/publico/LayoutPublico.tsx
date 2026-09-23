@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react'
 import { Link, NavLink, Outlet, useLocation } from 'react-router-dom'
 import { Instagram, MapPin, MessageCircle, Phone } from 'lucide-react'
 import { DATOS_FISCALES, RESTAURANTE } from '@/compartido/config'
@@ -12,18 +13,34 @@ export default function LayoutPublico() {
   const { pathname } = useLocation()
   // Direccion, telefono y redes salen de la base: los edita el panel.
   const ficha = useFichaSitio()
+
+  // Arriba del todo el encabezado se funde con la portada; al bajar aparece
+  // su fondo y una sombra, para que se separe de lo que pasa por debajo.
+  const [bajo, setBajo] = useState(false)
+  useEffect(() => {
+    const medir = () => setBajo(window.scrollY > 12)
+    medir()
+    window.addEventListener('scroll', medir, { passive: true })
+    return () => window.removeEventListener('scroll', medir)
+  }, [])
   const whatsapp = enlaceWhatsApp(ficha.whatsapp, SALUDO_WHATSAPP)
 
   return (
     <div className="flex min-h-dvh flex-col bg-carbon-950 text-hueso-100">
-      <header className="sticky top-0 z-40 border-b border-carbon-800 bg-carbon-950/95 backdrop-blur">
+      <header
+        className={`sticky top-0 z-40 border-b backdrop-blur transition-[background-color,border-color,box-shadow] duration-500 ${
+          bajo
+            ? 'border-carbon-800 bg-carbon-950/95 shadow-[0_10px_30px_-12px_rgba(0,0,0,0.9)]'
+            : 'border-transparent bg-carbon-950/40'
+        }`}
+      >
         {/* Altura fija: la barra de categorías de la carta se pega debajo (top-16). */}
         <nav className="mx-auto flex h-16 max-w-6xl items-center justify-between gap-3 px-4 sm:px-6">
           {/* El símbolo y el nombre son UN solo enlace al inicio, no dos: dos
               enlaces contiguos al mismo sitio obligan a un lector de pantalla a
               anunciarlo dos veces, y con el teclado hay que pasar dos veces por
               lo mismo. */}
-          <Link to="/" className="text-hueso-50 transition hover:text-dorado-300">
+          <Link to="/" className="group text-hueso-50 transition hover:text-dorado-300">
             <MarcaConNombre />
           </Link>
 
@@ -47,7 +64,7 @@ export default function LayoutPublico() {
             </NavLink>
             <NavLink
               to="/reservar"
-              className="inline-flex min-h-[40px] items-center bg-dorado-500 px-3 text-carbon-950 transition hover:bg-dorado-400 sm:px-5"
+              className="boton-brillo inline-flex min-h-[40px] items-center bg-dorado-500 px-3 text-carbon-950 hover:bg-dorado-400 sm:px-5"
             >
               Reservar
             </NavLink>
@@ -145,9 +162,8 @@ export default function LayoutPublico() {
 const titulo = 'text-[0.7rem] font-medium uppercase tracking-[0.3em] text-dorado-400'
 
 function enlace({ isActive }: { isActive: boolean }) {
-  return `border-b py-1 transition ${
-    isActive
-      ? 'border-dorado-500 text-hueso-50'
-      : 'border-transparent text-hueso-100/60 hover:text-hueso-50'
+  // El subrayado dorado crece al pasar el cursor y se queda en la activa.
+  return `subrayado py-1 transition ${
+    isActive ? 'activo text-hueso-50' : 'text-hueso-100/60 hover:text-hueso-50'
   }`
 }

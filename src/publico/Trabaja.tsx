@@ -90,14 +90,14 @@ export default function Trabaja() {
         <span className="flex h-14 w-14 items-center justify-center rounded-full border border-dorado-500 text-dorado-300">
           <CheckCircle2 className="h-7 w-7" aria-hidden />
         </span>
-        <Titular nivel="h1" className="mt-6">
+        <Titular nivel="h1" className="subir demora-1 mt-6">
           Hoja de vida recibida
         </Titular>
         <p className="mt-4 max-w-md text-hueso-100/70">{enviada}</p>
         <button
           type="button"
           onClick={() => setEnviada(null)}
-          className="mt-8 min-h-toque px-5 text-hueso-100 transition hover:text-dorado-300 border border-hueso-100/20 hover:border-dorado-400 text-xs font-semibold uppercase tracking-[0.18em]"
+          className="boton-relleno mt-8 min-h-toque px-5 text-hueso-100 border border-hueso-100/20 text-xs font-semibold uppercase tracking-[0.18em]"
         >
           Enviar otra
         </button>
@@ -108,17 +108,17 @@ export default function Trabaja() {
   return (
     <div className="mx-auto max-w-2xl px-5 py-12 sm:py-16">
       <header>
-        <Rotulo>Empleo</Rotulo>
-        <Titular nivel="h1" className="mt-5">
+        <Rotulo className="subir">Empleo</Rotulo>
+        <Titular nivel="h1" className="subir demora-1 mt-5">
           Trabaja con nosotros
         </Titular>
-        <p className="mt-4 max-w-lg text-base leading-relaxed text-hueso-100/70">
+        <p className="subir demora-2 mt-4 max-w-lg text-base leading-relaxed text-hueso-100/70">
           Déjenos su hoja de vida. Si su perfil encaja con una vacante en{' '}
           {RESTAURANTE.nombreCompleto}, nos comunicamos con usted.
         </p>
       </header>
 
-      <form ref={formulario} onSubmit={enviar} className="mt-10 space-y-5" noValidate={false}>
+      <form ref={formulario} onSubmit={enviar} className="subir demora-3 mt-10 space-y-5" noValidate={false}>
         {/*
           El señuelo. Va escondido de forma que ni se vea ni entre en el orden
           de tabulación ni lo lea un lector de pantalla: una persona nunca lo
@@ -310,7 +310,7 @@ export default function Trabaja() {
         <button
           type="submit"
           disabled={enviando}
-          className="flex min-h-toque w-full items-center justify-center gap-2 bg-dorado-500 px-6 text-carbon-950 transition hover:bg-dorado-400 disabled:opacity-60 text-xs font-semibold uppercase tracking-[0.18em]"
+          className="boton-brillo flex min-h-toque w-full items-center justify-center gap-2 bg-dorado-500 px-6 text-carbon-950 transition hover:bg-dorado-400 disabled:opacity-60 text-xs font-semibold uppercase tracking-[0.18em]"
         >
           {enviando && <Loader2 className="h-4 w-4 animate-spin" aria-hidden />}
           {enviando ? 'Enviando…' : 'Enviar hoja de vida'}

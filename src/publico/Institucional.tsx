@@ -45,9 +45,9 @@ export default function Institucional() {
         </p>
 
         {resto.length > 0 && (
-          <div className="mt-10 grid gap-3 sm:grid-cols-2">
+          <div className="escalonar mt-10 grid gap-3 sm:grid-cols-2">
             {resto.map((bloque) => (
-              <article key={bloque.clave} className="bg-carbon-900 p-6">
+              <article key={bloque.clave} className="tarjeta-viva bg-carbon-900 p-6">
                 <h3 className="font-titulo text-xl uppercase text-hueso-50 font-light tracking-[0.1em] leading-tight">
                   {bloque.titulo}
                 </h3>
@@ -70,7 +70,7 @@ export default function Institucional() {
           </p>
           <Link
             to="/trabaja-con-nosotros"
-            className="inline-flex min-h-toque shrink-0 items-center self-start border border-dorado-500 px-6 text-dorado-300 transition hover:bg-dorado-500 hover:text-carbon-950 sm:self-auto text-xs font-semibold uppercase tracking-[0.18em]"
+            className="boton-relleno inline-flex min-h-toque shrink-0 items-center self-start border border-dorado-500 px-6 text-dorado-300 sm:self-auto text-xs font-semibold uppercase tracking-[0.18em]"
           >
             Trabaja con nosotros
           </Link>

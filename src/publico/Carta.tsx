@@ -194,7 +194,7 @@ export default function Carta() {
                   chapa: se recorre como el tablero de una barra, a golpe de
                   vista, que es como se elige qué pedir con los amigos.
                 */}
-                <ul className="mt-6 grid gap-3 sm:grid-cols-2">
+                <ul className="escalonar mt-6 grid gap-3 sm:grid-cols-2">
                   {categoria.items.map((item) => {
                     const fotos = fotosDePlato(item)
 
@@ -211,7 +211,7 @@ export default function Carta() {
                     return (
                       <li
                         key={item.id}
-                        className={`relative flex gap-4 bg-carbon-900 p-4 transition hover:bg-carbon-800 sm:p-5 ${
+                        className={`tarjeta-viva group relative flex gap-4 bg-carbon-900 p-4 hover:bg-carbon-800 sm:p-5 ${
                           item.disponible ? '' : 'opacity-55'
                         }`}
                       >
@@ -275,7 +275,7 @@ export default function Carta() {
                                 /* `relative` lo saca de debajo del `::after`
                                    que cubre la tarjeta: sin esto, tocar el
                                    botón abriría la ficha en vez de agregar. */
-                                className="relative inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-hueso-100/25 text-hueso-100 transition hover:border-dorado-400 hover:text-dorado-300"
+                                className="relative inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-hueso-100/25 text-hueso-100 transition duration-500 hover:border-dorado-400 hover:text-dorado-300 group-hover:rotate-90 group-hover:border-dorado-500/60"
                               >
                                 <Plus className="h-5 w-5" aria-hidden />
                               </button>
@@ -326,7 +326,7 @@ export default function Carta() {
         <div className="fixed inset-x-0 bottom-0 z-40 px-4 pt-3 pb-segura">
           <Link
             to="/pedir"
-            className="mx-auto mb-3 flex min-h-[56px] max-w-xl items-center justify-between gap-4 bg-dorado-500 px-6 text-carbon-950 shadow-2xl shadow-black/60 transition hover:bg-dorado-400"
+            className="boton-brillo mx-auto mb-3 flex min-h-[56px] max-w-xl items-center justify-between gap-4 bg-dorado-500 px-6 text-carbon-950 shadow-2xl shadow-black/60 transition hover:bg-dorado-400"
           >
             <span className="flex items-center gap-2 font-semibold">
               <ShoppingBag className="h-5 w-5" aria-hidden />

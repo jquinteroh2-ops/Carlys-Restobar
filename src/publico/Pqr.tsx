@@ -29,11 +29,11 @@ export default function Pqr() {
   return (
     <div className="mx-auto max-w-2xl px-5 py-12 sm:py-16">
       <header>
-        <Rotulo>PQR</Rotulo>
-        <Titular nivel="h1" className="mt-5">
+        <Rotulo className="subir">PQR</Rotulo>
+        <Titular nivel="h1" className="subir demora-1 mt-5">
           Peticiones, quejas y sugerencias
         </Titular>
-        <p className="mt-4 max-w-lg text-base leading-relaxed text-hueso-100/70">
+        <p className="subir demora-2 mt-4 max-w-lg text-base leading-relaxed text-hueso-100/70">
           Cuéntenos qué pasó. Toda solicitud recibe un número de radicado y una respuesta.
         </p>
       </header>
@@ -41,7 +41,7 @@ export default function Pqr() {
       {/* Dos pestañas y no dos páginas: quien viene a consultar suele llegar
           desde el correo del acuse, y buscar un enlace distinto sería una
           fricción de más para alguien que ya está molesto. */}
-      <div className="mt-8 inline-flex gap-1 bg-carbon-900 p-1">
+      <div className="subir demora-2 mt-8 inline-flex gap-1 bg-carbon-900 p-1">
         {(
           [
             ['radicar', 'Radicar una solicitud'],
@@ -170,7 +170,7 @@ function Radicar() {
         <button
           type="button"
           onClick={() => setRadicada(null)}
-          className="mt-8 min-h-toque px-5 text-hueso-100 transition hover:text-dorado-300 border border-hueso-100/20 hover:border-dorado-400 text-xs font-semibold uppercase tracking-[0.18em]"
+          className="boton-relleno mt-8 min-h-toque px-5 text-hueso-100 border border-hueso-100/20 text-xs font-semibold uppercase tracking-[0.18em]"
         >
           Radicar otra
         </button>
@@ -179,7 +179,7 @@ function Radicar() {
   }
 
   return (
-    <form ref={formulario} onSubmit={enviar} className="mt-8 space-y-5">
+    <form ref={formulario} onSubmit={enviar} className="subir demora-3 mt-8 space-y-5">
       {/* El señuelo. Ver `Trabaja.tsx`. */}
       <div className="absolute left-[-9999px] top-auto h-px w-px overflow-hidden" aria-hidden>
         <label htmlFor="pqr-sitioWeb">Sitio web</label>
@@ -366,7 +366,7 @@ function Radicar() {
       <button
         type="submit"
         disabled={enviando}
-        className="flex min-h-toque w-full items-center justify-center gap-2 bg-dorado-500 px-6 text-carbon-950 transition hover:bg-dorado-400 disabled:opacity-60 text-xs font-semibold uppercase tracking-[0.18em]"
+        className="boton-brillo flex min-h-toque w-full items-center justify-center gap-2 bg-dorado-500 px-6 text-carbon-950 transition hover:bg-dorado-400 disabled:opacity-60 text-xs font-semibold uppercase tracking-[0.18em]"
       >
         {enviando && <Loader2 className="h-4 w-4 animate-spin" aria-hidden />}
         {enviando ? 'Radicando…' : 'Radicar solicitud'}
@@ -446,7 +446,7 @@ function Consultar() {
         <button
           type="submit"
           disabled={buscando}
-          className="flex min-h-toque w-full items-center justify-center gap-2 px-6 text-hueso-100 transition hover:text-dorado-300 disabled:opacity-60 border border-hueso-100/20 hover:border-dorado-400 text-xs font-semibold uppercase tracking-[0.18em]"
+          className="boton-relleno flex min-h-toque w-full items-center justify-center gap-2 px-6 text-hueso-100 disabled:opacity-60 border border-hueso-100/20 text-xs font-semibold uppercase tracking-[0.18em]"
         >
           {buscando ? (
             <Loader2 className="h-4 w-4 animate-spin" aria-hidden />

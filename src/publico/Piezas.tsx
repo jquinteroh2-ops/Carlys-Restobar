@@ -36,7 +36,8 @@ export function Rotulo({ children, className = '' }: { children: ReactNode; clas
     <span
       className={`inline-flex items-center gap-3 text-xs font-medium uppercase tracking-[0.3em] text-dorado-400 ${className}`}
     >
-      <span className="h-px w-8 bg-dorado-500" aria-hidden />
+      {/* Se dibuja sola: al cargar la página o cuando su bloque aparece. */}
+      <span className="linea-dorada h-px w-8 bg-dorado-500" aria-hidden />
       {children}
     </span>
   )
@@ -92,12 +93,13 @@ export function CabeceraDePagina({
 }) {
   return (
     <header className="mx-auto max-w-6xl px-4 pb-10 pt-14 sm:px-6 sm:pt-20">
-      <Rotulo>{rotulo}</Rotulo>
-      <Titular nivel="h1" tamano="grande" className="mt-6 max-w-4xl">
+      {/* Los tres entran en cadena: rótulo, titular y entradilla. */}
+      <Rotulo className="subir">{rotulo}</Rotulo>
+      <Titular nivel="h1" tamano="grande" className="subir demora-1 mt-6 max-w-4xl">
         {titulo}
       </Titular>
       {children && (
-        <div className="mt-6 max-w-2xl text-base leading-relaxed text-hueso-100/65">
+        <div className="subir demora-2 mt-6 max-w-2xl text-base leading-relaxed text-hueso-100/65">
           {children}
         </div>
       )}

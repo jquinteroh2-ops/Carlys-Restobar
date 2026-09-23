@@ -77,7 +77,7 @@ export default function Reservar() {
           <Check className="h-7 w-7" aria-hidden />
         </span>
 
-        <Titular nivel="h1" className="mt-6">
+        <Titular nivel="h1" className="subir demora-1 mt-6">
           Recibimos tu solicitud
         </Titular>
         <p className="mt-4 text-lg text-hueso-100/75">Te confirmamos por WhatsApp.</p>
@@ -116,14 +116,14 @@ export default function Reservar() {
             )}
             target="_blank"
             rel="noopener noreferrer"
-            className="inline-flex min-h-[52px] items-center justify-center gap-2 px-8 text-hueso-100 transition hover:text-dorado-300 border border-hueso-100/20 hover:border-dorado-400 text-xs font-semibold uppercase tracking-[0.18em]"
+            className="boton-relleno inline-flex min-h-[52px] items-center justify-center gap-2 px-8 text-hueso-100 border border-hueso-100/20 text-xs font-semibold uppercase tracking-[0.18em]"
           >
             <MessageCircle className="h-4 w-4" aria-hidden />
             Escribir por WhatsApp
           </a>
           <Link
             to="/carta"
-            className="min-h-[52px] bg-dorado-500 px-8 leading-[52px] text-carbon-950 transition hover:bg-dorado-400 text-xs font-semibold uppercase tracking-[0.18em]"
+            className="boton-brillo min-h-[52px] bg-dorado-500 px-8 leading-[52px] text-carbon-950 transition hover:bg-dorado-400 text-xs font-semibold uppercase tracking-[0.18em]"
           >
             Ver la carta
           </Link>
@@ -136,16 +136,16 @@ export default function Reservar() {
   return (
     <section className="mx-auto max-w-xl px-5 py-16">
       <div>
-        <Rotulo>Reservas</Rotulo>
-        <Titular nivel="h1" tamano="grande" className="mt-5">
+        <Rotulo className="subir">Reservas</Rotulo>
+        <Titular nivel="h1" tamano="grande" className="subir demora-1 mt-5">
           Reserve su mesa
         </Titular>
-        <p className="mt-5 max-w-md text-base leading-relaxed text-hueso-100/70">
+        <p className="subir demora-2 mt-5 max-w-md text-base leading-relaxed text-hueso-100/70">
           Déjenos sus datos y le confirmamos por WhatsApp. Toma menos de un minuto.
         </p>
       </div>
 
-      <form onSubmit={enviar} className="mt-10 space-y-5">
+      <form onSubmit={enviar} className="subir demora-3 mt-10 space-y-5">
         <label className="block">
           <span className="mb-2 block text-[0.7rem] font-medium uppercase tracking-[0.2em] text-hueso-100/60">
             Nombre completo

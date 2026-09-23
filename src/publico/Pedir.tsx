@@ -167,7 +167,7 @@ export default function Pedir() {
         <span className="flex h-14 w-14 items-center justify-center rounded-full border border-dorado-500 text-dorado-300">
           <Check className="h-7 w-7" aria-hidden />
         </span>
-        <Titular nivel="h1" className="mt-6">
+        <Titular nivel="h1" className="subir demora-1 mt-6">
           Pedido recibido
         </Titular>
 
@@ -221,7 +221,7 @@ export default function Pedir() {
 
         <Link
           to="/carta"
-          className="mt-8 inline-flex min-h-[48px] items-center gap-2 px-5 text-hueso-100 transition hover:text-dorado-300 border border-hueso-100/20 hover:border-dorado-400 text-xs font-semibold uppercase tracking-[0.18em]"
+          className="boton-relleno mt-8 inline-flex min-h-[48px] items-center gap-2 px-5 text-hueso-100 border border-hueso-100/20 text-xs font-semibold uppercase tracking-[0.18em]"
         >
           Volver a la carta
         </Link>
@@ -239,7 +239,7 @@ export default function Pedir() {
         <span className="flex h-14 w-14 items-center justify-center rounded-full bg-carbon-900">
           <ShoppingBag className="h-6 w-6 text-hueso-100/60" aria-hidden />
         </span>
-        <Titular nivel="h1" className="mt-6">
+        <Titular nivel="h1" className="subir demora-1 mt-6">
           Todavía no ha escogido nada
         </Titular>
         <p className="mt-3 text-sm text-hueso-100/60">
@@ -247,7 +247,7 @@ export default function Pedir() {
         </p>
         <Link
           to="/carta"
-          className="mt-8 inline-flex min-h-[48px] items-center gap-2 px-5 text-hueso-100 transition hover:text-dorado-300 border border-hueso-100/20 hover:border-dorado-400 text-xs font-semibold uppercase tracking-[0.18em]"
+          className="boton-relleno mt-8 inline-flex min-h-[48px] items-center gap-2 px-5 text-hueso-100 border border-hueso-100/20 text-xs font-semibold uppercase tracking-[0.18em]"
         >
           Ver la carta
         </Link>
@@ -293,7 +293,7 @@ export default function Pedir() {
         Seguir viendo la carta
       </button>
 
-      <Titular nivel="h1" tamano="grande">
+      <Titular nivel="h1" tamano="grande" className="subir">
         Su pedido
       </Titular>
 
@@ -349,7 +349,7 @@ export default function Pedir() {
         ))}
       </ul>
 
-      <form onSubmit={enviar} className="mt-8 space-y-6">
+      <form onSubmit={enviar} className="subir demora-2 mt-8 space-y-6">
         {/* ---------- Tipo ---------- */}
         <div>
           <span className={etiquetaCampo}>¿Cómo lo quiere?</span>
@@ -499,7 +499,7 @@ export default function Pedir() {
                       type="button"
                       onClick={tomarUbicacion}
                       disabled={buscandoUbicacion}
-                      className="min-h-[40px] px-3.5 text-xs text-hueso-100/70 transition hover:text-dorado-300 disabled:opacity-60 border border-hueso-100/20 hover:border-dorado-400 font-semibold uppercase tracking-[0.18em]"
+                      className="boton-relleno min-h-[40px] px-3.5 text-xs text-hueso-100/70 disabled:opacity-60 border border-hueso-100/20 font-semibold uppercase tracking-[0.18em]"
                     >
                       {buscandoUbicacion ? 'Buscando…' : 'Volver a tomarla'}
                     </button>
@@ -509,7 +509,7 @@ export default function Pedir() {
                         setUbicacion(null)
                         setAvisoUbicacion(null)
                       }}
-                      className="min-h-[40px] px-3.5 text-xs text-hueso-100/50 transition border border-hueso-100/20 hover:border-dorado-400 hover:text-dorado-300 font-semibold uppercase tracking-[0.18em]"
+                      className="boton-relleno min-h-[40px] px-3.5 text-xs text-hueso-100/50 border border-hueso-100/20 font-semibold uppercase tracking-[0.18em]"
                     >
                       Quitarla
                     </button>
@@ -526,7 +526,7 @@ export default function Pedir() {
                     type="button"
                     onClick={tomarUbicacion}
                     disabled={buscandoUbicacion}
-                    className="inline-flex min-h-[48px] items-center gap-2 px-4 text-hueso-100 transition hover:text-dorado-300 disabled:opacity-60 border border-hueso-100/20 hover:border-dorado-400 text-xs font-semibold uppercase tracking-[0.18em]"
+                    className="boton-relleno inline-flex min-h-[48px] items-center gap-2 px-4 text-hueso-100 disabled:opacity-60 border border-hueso-100/20 text-xs font-semibold uppercase tracking-[0.18em]"
                   >
                     <Crosshair className="h-4 w-4" aria-hidden />
                     {buscandoUbicacion ? 'Buscando su ubicación…' : 'Estoy aquí, usar mi ubicación'}
@@ -615,7 +615,7 @@ export default function Pedir() {
         <button
           type="submit"
           disabled={enviando}
-          className="flex min-h-[56px] w-full items-center justify-center gap-2 bg-dorado-500 px-5 text-carbon-950 transition hover:bg-dorado-400 disabled:opacity-60 text-xs font-semibold uppercase tracking-[0.18em]"
+          className="boton-brillo flex min-h-[56px] w-full items-center justify-center gap-2 bg-dorado-500 px-5 text-carbon-950 transition hover:bg-dorado-400 disabled:opacity-60 text-xs font-semibold uppercase tracking-[0.18em]"
         >
           {enviando ? 'Enviando…' : 'Confirmar pedido'}
         </button>
