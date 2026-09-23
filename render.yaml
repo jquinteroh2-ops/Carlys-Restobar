@@ -1,14 +1,17 @@
 # Despliegue de DEMOSTRACIÓN en Render, en el plan gratuito.
 #
-# Dos servicios: el backend (Docker) y el sitio (estático). La base de datos NO
-# está aquí: es un Postgres gratuito de Neon, porque el de Render gratis se
-# borra a los 30 días y el de Neon no. Render pide la cadena de conexión de
-# Neon al crear el Blueprint (DATABASE_URL), y el guion de arranque la traduce.
+# Tres piezas, todas en Render: la base (Postgres), el backend (Docker) y el
+# sitio (estático). El guion de arranque traduce la cadena de conexión que
+# entrega Render (postgresql://usuario:clave@servidor/base) al formato JDBC.
 #
 # Qué implica el plan gratuito:
 #   - El backend se duerme tras 15 minutos sin visitas. La primera petición
 #     después lo despierta y tarda cerca de un minuto; el sitio carga al
 #     instante, pero la carta aparece cuando el backend termina de despertar.
+#   - La base gratuita de Render VENCE A LOS 30 DÍAS. Se crea otra desde el
+#     panel y el backend, al arrancar, vuelve a crear las tablas y a sembrar
+#     los datos de ejemplo. Si la demo tiene que durar más, se cambia
+#     DATABASE_URL por la de un Postgres que no venza (Neon, por ejemplo).
 #   - No hay disco persistente: fotos subidas, hojas de vida y adjuntos de PQR
 #     se pierden en cada reinicio. Para una demostración da igual; para operar
 #     de verdad, no.
@@ -16,23 +19,32 @@
 # Está en MODO DEMOSTRACIÓN (CARLYS_CLAVE_DEMO): siete cuentas con clave
 # conocida y datos de ejemplo. Esto NO es un despliegue para operar.
 
+databases:
+  - name: carlys-base
+    plan: free
+    region: virginia
+    databaseName: carlys
+    user: carlys
+
 services:
   - type: web
     name: carlys-restobar-api
     runtime: docker
     plan: free
-    # Virginia: la región más cercana a Colombia, y la misma de la base en Neon
-    # (AWS us-east-1). Base y backend en regiones distintas suman ~70 ms a cada
-    # consulta.
+    # Virginia: la región más cercana a Colombia, y la misma de la base. Base
+    # y backend en regiones distintas suman latencia a cada consulta.
     region: virginia
     dockerfilePath: ./backend/Dockerfile
     dockerContext: .
     healthCheckPath: /salud
     autoDeploy: true
     envVars:
-      # La cadena tal como la entrega Neon: postgresql://usuario:clave@...
+      # La cadena interna de la base (red privada de Render, sin salir a
+      # internet): postgresql://usuario:clave@servidor/base
       - key: DATABASE_URL
-        sync: false
+        fromDatabase:
+          name: carlys-base
+          property: connectionString
       - key: CARLYS_JWT_SECRETO
         generateValue: true
       - key: CARLYS_CORS_ORIGENES
