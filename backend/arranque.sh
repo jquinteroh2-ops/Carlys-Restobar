@@ -23,6 +23,32 @@
 # proceso, así que Java queda de PID 1 y recibe las señales directamente.
 set -e
 
+# La base puede llegar como la entregan Neon, Render o Heroku:
+#
+#   postgresql://usuario:clave@servidor/base?sslmode=require
+#
+# y Java no entiende ese formato: el controlador JDBC quiere
+# `jdbc:postgresql://servidor/base` y el usuario y la clave por separado. Se
+# traduce aquí para que quien despliega pegue la cadena tal como se la dan, sin
+# desarmarla a mano —que es donde se cuela un error de copia—. Si ya viene en
+# formato JDBC no se toca. Se corta en la ÚLTIMA arroba, por si la clave trae
+# una. De los parámetros solo se conserva `sslmode`, con el valor que traiga
+# (Neon manda `require`; un Postgres local sin SSL, `disable` o nada), y no se
+# inventa uno: forzarlo tumba el arranque contra una base sin SSL.
+# `channel_binding`, que Neon agrega, no lo reconoce el controlador.
+case "${DATABASE_URL:-}" in
+  postgres://*|postgresql://*)
+    resto="${DATABASE_URL#*://}"
+    credenciales="${resto%@*}"
+    servidor_y_base="${resto##*@}"
+    export DATABASE_USUARIO="${DATABASE_USUARIO:-${credenciales%%:*}}"
+    export DATABASE_CLAVE="${DATABASE_CLAVE:-${credenciales#*:}}"
+    modo_ssl="$(printf '%s' "$servidor_y_base" | sed -n 's/.*[?&]sslmode=\([^&]*\).*/\1/p')"
+    export DATABASE_URL="jdbc:postgresql://${servidor_y_base%%[?]*}${modo_ssl:+?sslmode=$modo_ssl}"
+    echo "[arranque] Cadena de conexión traducida a JDBC"
+    ;;
+esac
+
 DATOS="${RUTA_DATOS:-/aplicacion/datos}"
 
 if [ "$(id -u)" = "0" ]; then

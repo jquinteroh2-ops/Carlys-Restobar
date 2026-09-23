@@ -1,0 +1,71 @@
+# Despliegue de DEMOSTRACIÓN en Render, en el plan gratuito.
+#
+# Dos servicios: el backend (Docker) y el sitio (estático). La base de datos NO
+# está aquí: es un Postgres gratuito de Neon, porque el de Render gratis se
+# borra a los 30 días y el de Neon no. Render pide la cadena de conexión de
+# Neon al crear el Blueprint (DATABASE_URL), y el guion de arranque la traduce.
+#
+# Qué implica el plan gratuito:
+#   - El backend se duerme tras 15 minutos sin visitas. La primera petición
+#     después lo despierta y tarda cerca de un minuto; el sitio carga al
+#     instante, pero la carta aparece cuando el backend termina de despertar.
+#   - No hay disco persistente: fotos subidas, hojas de vida y adjuntos de PQR
+#     se pierden en cada reinicio. Para una demostración da igual; para operar
+#     de verdad, no.
+#
+# Está en MODO DEMOSTRACIÓN (CARLYS_CLAVE_DEMO): siete cuentas con clave
+# conocida y datos de ejemplo. Esto NO es un despliegue para operar.
+
+services:
+  - type: web
+    name: carlys-restobar-api
+    runtime: docker
+    plan: free
+    # Virginia: la región más cercana a Colombia, y la misma de la base en Neon
+    # (AWS us-east-1). Base y backend en regiones distintas suman ~70 ms a cada
+    # consulta.
+    region: virginia
+    dockerfilePath: ./backend/Dockerfile
+    dockerContext: .
+    healthCheckPath: /salud
+    autoDeploy: true
+    envVars:
+      # La cadena tal como la entrega Neon: postgresql://usuario:clave@...
+      - key: DATABASE_URL
+        sync: false
+      - key: CARLYS_JWT_SECRETO
+        generateValue: true
+      - key: CARLYS_CORS_ORIGENES
+        value: https://carlys-restobar.onrender.com
+      - key: CARLYS_CLAVE_DEMO
+        value: carlys2026
+      - key: CARLYS_ZONA
+        value: America/Bogota
+      # 512 MB en el plan gratuito. El recolector serial y pilas más pequeñas
+      # dejan a Spring holgura suficiente; con los valores de fábrica el
+      # contenedor se acerca al límite y la plataforma lo reinicia.
+      - key: JAVA_OPTS
+        value: -XX:MaxRAMPercentage=70 -XX:+UseSerialGC -Xss512k -XX:TieredStopAtLevel=1
+
+  - type: web
+    name: carlys-restobar
+    runtime: static
+    buildCommand: npm ci && npm run build
+    staticPublishPath: ./dist
+    autoDeploy: true
+    envVars:
+      - key: VITE_URL_API
+        value: https://carlys-restobar-api.onrender.com
+    # Aplicación de una sola página: cualquier ruta (/carta, /reservar,
+    # /admin...) sirve index.html y el enrutador de React decide qué mostrar.
+    # Sin esto, recargar en /carta da 404.
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
+    headers:
+      # El service worker no puede quedarse en caché: si el navegador guarda el
+      # viejo, los clientes siguen viendo la versión anterior del sitio.
+      - path: /sw.js
+        name: Cache-Control
+        value: no-cache
