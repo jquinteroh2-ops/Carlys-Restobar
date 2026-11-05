@@ -1,5 +1,5 @@
 import { NavLink, Outlet, useLocation } from 'react-router-dom'
-import { BarChart3, BookOpen, CalendarClock, LayoutDashboard, Megaphone, Receipt, FileText, MessageSquare, Settings, Users, Wallet } from 'lucide-react'
+import { BarChart3, BookOpen, CalendarClock, ClipboardList, LayoutDashboard, Megaphone, Receipt, FileText, MessageSquare, Settings, Users, Wallet } from 'lucide-react'
 import * as api from '@/compartido/mockApi'
 import { useSesionActiva } from '@/compartido/auth'
 import { useSyncedState } from '@/compartido/useSyncedState'
@@ -28,6 +28,10 @@ function Pendientes({ consultar }: { consultar: () => Promise<number> }) {
   )
 }
 
+/** Mesas que pidieron la cuenta: lo que el cajero tiene que facturar ya. */
+const cuentasPedidas = async (): Promise<number> =>
+  (await api.listarMesas()).filter((m) => m.estado === 'cuenta_pedida').length
+
 /** `soloAdmin` mantiene reportes y configuracion fuera de la vista del cajero. */
 const SECCIONES = [
   { ruta: '/admin', etiqueta: 'Inicio', icono: LayoutDashboard, exacta: true, soloAdmin: false },
@@ -35,6 +39,8 @@ const SECCIONES = [
   { ruta: '/admin/carta', etiqueta: 'Carta', icono: BookOpen, exacta: false, soloAdmin: false },
   // Solo el dueno: lo que se publica aqui lo ve cualquiera que pase por el sitio.
   { ruta: '/admin/publicaciones', etiqueta: 'Publicaciones', icono: Megaphone, exacta: false, soloAdmin: true },
+  // Las cuentas abiertas del salon, para que el cajero las cobre y facture.
+  { ruta: '/admin/caja', etiqueta: 'Caja', icono: ClipboardList, exacta: false, soloAdmin: false, pendientes: cuentasPedidas },
   { ruta: '/admin/ventas', etiqueta: 'Ventas', icono: Receipt, exacta: false, soloAdmin: false },
   { ruta: '/admin/cierre', etiqueta: 'Cierre de caja', icono: Wallet, exacta: false, soloAdmin: false },
   // Hojas de vida: datos personales de gente que confio en el restaurante. Solo el dueno.

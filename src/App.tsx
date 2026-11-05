@@ -35,6 +35,7 @@ import CartaAdmin from '@/admin/CartaAdmin'
 import Publicaciones from '@/admin/Publicaciones'
 import Ventas from '@/admin/Ventas'
 import Cierre from '@/admin/Cierre'
+import Caja from '@/admin/Caja'
 import Postulaciones from '@/admin/Postulaciones'
 import PqrAdmin from '@/admin/Pqr'
 import InstitucionalAdmin from '@/admin/Institucional'
@@ -185,6 +186,7 @@ export default function App() {
               <Route path="carta" element={<CartaAdmin />} />
               <Route path="publicaciones" element={<Publicaciones />} />
               <Route path="ventas" element={<Ventas />} />
+              <Route path="caja" element={<Caja />} />
               <Route path="cierre" element={<Cierre />} />
               <Route
                 path="institucional"
