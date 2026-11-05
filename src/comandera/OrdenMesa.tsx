@@ -4,6 +4,7 @@ import {
   ArrowLeft,
   ArrowLeftRight,
   Ban,
+  Check,
   CheckCheck,
   DoorOpen,
   ClipboardList,
@@ -28,7 +29,7 @@ import { CARGOS_FRECUENTES } from '@/compartido/config'
 import { useSesionActiva } from '@/compartido/auth'
 import { formatoCOP, formatoHora, minutosDesde, tiempoTranscurrido } from '@/compartido/formato'
 import { useReloj, useSyncedState } from '@/compartido/useSyncedState'
-import type { ItemOrden } from '@/compartido/tipos'
+import type { ItemCarta, ItemOrden } from '@/compartido/tipos'
 import { Boton } from '@/componentes/ui/Boton'
 import { Cargando } from '@/componentes/ui/Cargando'
 import { Contador } from '@/componentes/ui/Contador'
@@ -37,7 +38,13 @@ import { Insignia } from '@/componentes/ui/Insignia'
 import { Vacio } from '@/componentes/ui/Vacio'
 import { useAvisos } from '@/componentes/ui/Avisos'
 import { IndicadorConexion } from '@/componentes/IndicadorConexion'
-import { ETIQUETA_ITEM, NOMBRE_ZONA, TONO_ITEM, colorEspera } from '@/compartido/estados'
+import {
+  ETIQUETA_ITEM,
+  NOMBRE_ZONA,
+  TONO_ITEM,
+  colorPorAvance,
+  tiempoEstimadoTurno,
+} from '@/compartido/estados'
 
 type HojaAbierta = 'cargo' | 'traslado' | 'nota' | 'anular' | 'liberar' | null
 
@@ -54,6 +61,16 @@ export default function OrdenMesa() {
     ['ordenes', 'mesas', 'cocina', 'todo'],
   )
   const { datos: mesas } = useSyncedState<MesaEnMapa[]>(() => api.listarMesas(), [], [], ['mesas', 'todo'])
+
+  // El tiempo de cada plato, el mismo con que cocina mide si un turno va tarde.
+  const { datos: carta } = useSyncedState<ItemCarta[]>(() => api.listarCarta(), [], [], ['carta', 'todo'])
+  const tiempos = useMemo(
+    () =>
+      new Map(
+        carta.filter((p) => p.tiempoPreparacionMin > 0).map((p) => [p.id, p.tiempoPreparacionMin]),
+      ),
+    [carta],
+  )
 
   useReloj(15000)
 
@@ -225,7 +242,7 @@ export default function OrdenMesa() {
   const mesasLibres = mesas.filter((m) => m.estado === 'libre' && m.id !== mesa.id)
 
   return (
-    <div className="flex min-h-dvh flex-col bg-noche-950 pb-40">
+    <div className={`flex min-h-dvh flex-col bg-noche-950 ${porEntregar > 0 ? 'pb-56' : 'pb-40'}`}>
       <header className="sticky top-0 z-30 border-b border-noche-800 bg-noche-900/95 backdrop-blur">
         <div className="flex items-center gap-2 px-3 py-2.5">
           <button
@@ -376,24 +393,71 @@ export default function OrdenMesa() {
           const enviadoEn = items[0]?.enviadoEn
           const espera = enviadoEn ? minutosDesde(enviadoEn) : 0
           const todoServido = items.every((i) => i.estado === 'servido' || i.estado === 'anulado')
+          // Mientras quede algo en cocina, el turno corre contra su plato más
+          // lento, igual que en la pantalla de cocina.
+          const enCocina = items.filter((i) => i.estado === 'pendiente' || i.estado === 'en_preparacion')
+          const corriendo = enCocina.length > 0
+          const estimado = tiempoEstimadoTurno(corriendo ? enCocina : items, tiempos)
+          const restante = estimado - espera
+          const color = colorPorAvance(espera, estimado)
+          const avance = Math.min(100, Math.round((espera / Math.max(estimado, 1)) * 100))
 
           return (
             <section key={turno} className="rounded-2xl border border-noche-800 bg-noche-900 p-3">
-              <div className="mb-2.5 flex items-center justify-between gap-2">
-                <h2 className="text-sm font-semibold text-hueso-100">
+              <div className="mb-2.5 flex items-center justify-between gap-3">
+                <h2 className="text-base font-semibold text-hueso-100">
                   Turno {turno}
                   {enviadoEn && (
-                    <span className="ml-2 text-xs font-normal text-noche-400">
+                    <span className="ml-2 text-sm font-normal text-noche-400">
                       {formatoHora(enviadoEn)}
                     </span>
                   )}
                 </h2>
+                {/* El mismo reloj que ve cocina, en grande: la mesera lo lee de
+                    un vistazo con la bandeja en la mano. Mientras algo sigue en
+                    cocina corre contra el plato más lento; cuando ya salió todo,
+                    se apaga a gris. */}
                 {!todoServido && enviadoEn && (
-                  <span className={`text-xs font-semibold tabular-nums ${colorEspera(espera)}`}>
-                    {espera} min
-                  </span>
+                  <div className="shrink-0 text-right">
+                    <span
+                      className={`inline-flex items-baseline gap-0.5 rounded-xl border px-3 py-1.5 text-2xl font-bold tabular-nums ${
+                        corriendo ? 'text-noche-950' : 'border-noche-700 bg-noche-800 text-noche-300'
+                      }`}
+                      style={corriendo ? { backgroundColor: color, borderColor: color } : undefined}
+                    >
+                      <Clock className="mr-1 h-5 w-5 self-center" aria-hidden />
+                      {espera}
+                      <span className="text-base font-semibold opacity-75">/{estimado}</span>
+                      <span className="ml-0.5 text-sm font-semibold">min</span>
+                    </span>
+                    <p
+                      className={`mt-1 text-sm font-semibold ${
+                        !corriendo
+                          ? 'text-estado-listo'
+                          : restante < 0
+                            ? 'text-estado-demorado'
+                            : 'text-noche-300'
+                      }`}
+                    >
+                      {!corriendo
+                        ? 'Listo para servir'
+                        : restante < 0
+                          ? `${-restante} min tarde`
+                          : restante === 0
+                            ? 'Ya debe salir'
+                            : `Faltan ${restante} min`}
+                    </p>
+                  </div>
                 )}
               </div>
+              {corriendo && enviadoEn && (
+                <div className="mb-2.5 h-2 w-full overflow-hidden rounded-full bg-noche-800" aria-hidden>
+                  <div
+                    className="h-full rounded-full transition-[width,background-color] duration-1000"
+                    style={{ width: `${avance}%`, backgroundColor: color }}
+                  />
+                </div>
+              )}
 
               <ul className="space-y-1.5">
                 {items.map((item) => (
@@ -429,21 +493,32 @@ export default function OrdenMesa() {
                       <span className="text-xs tabular-nums text-noche-400">
                         {formatoCOP(precioItem(item))}
                       </span>
-                      {item.estado === 'listo' && (
-                        <button
-                          type="button"
-                          disabled={ocupado}
-                          onClick={() =>
-                            ejecutar(async () => {
-                              await api.marcarEntregado(orden.id, item.id)
-                              return `${item.nombre} servido`
-                            })
-                          }
-                          className="min-h-[36px] rounded-lg bg-estado-listo px-2.5 text-xs font-bold text-noche-950 transition active:scale-95"
-                        >
-                          Servir
-                        </button>
-                      )}
+                      {/* Lo quita de la pantalla de cocina esté como esté: el
+                          cocinero tiene las manos ocupadas y muchas veces no
+                          alcanza a marcarlo listo antes de que salga. */}
+                      {item.turnoEnvio > 0 &&
+                        (item.estado === 'pendiente' ||
+                          item.estado === 'en_preparacion' ||
+                          item.estado === 'listo') && (
+                          <button
+                            type="button"
+                            disabled={ocupado}
+                            onClick={() =>
+                              ejecutar(async () => {
+                                await api.marcarEntregado(orden.id, item.id)
+                                return `${item.nombre} entregado. Ya no aparece en cocina.`
+                              })
+                            }
+                            className={`flex min-h-[40px] items-center gap-1.5 rounded-lg px-3 text-sm font-bold transition active:scale-95 disabled:opacity-50 ${
+                              item.estado === 'listo'
+                                ? 'bg-estado-listo text-noche-950'
+                                : 'border-2 border-estado-listo text-estado-listo hover:bg-estado-listo/15'
+                            }`}
+                          >
+                            <Check className="h-4 w-4" aria-hidden />
+                            Entregado
+                          </button>
+                        )}
                       {item.estado !== 'anulado' && item.estado !== 'servido' && (
                         <button
                           type="button"
@@ -587,16 +662,6 @@ export default function OrdenMesa() {
           >
             {orden.estado === 'cuenta_pedida' ? 'Cuenta pedida' : 'Pedir la cuenta'}
           </Boton>
-          {porEntregar > 0 && (
-            <Boton
-              className="col-span-2"
-              icono={<CheckCheck className="h-4 w-4" />}
-              disabled={ocupado}
-              onClick={entregarTodo}
-            >
-              Todo entregado ({porEntregar})
-            </Boton>
-          )}
           {sinConsumo && (
             <Boton
               className="col-span-2"
@@ -616,6 +681,20 @@ export default function OrdenMesa() {
 
       {/* ---------- Acciones principales, siempre al alcance del pulgar ---------- */}
       <div className="fixed inset-x-0 bottom-0 z-30 border-t border-noche-700 bg-noche-900/98 px-3 pt-3 pb-segura backdrop-blur">
+        {/* Aquí y no al final de la página: con la bandeja en la mano nadie
+            baja hasta el fondo, y mientras no se toque la comanda sigue
+            ocupando la pantalla de cocina. */}
+        {porEntregar > 0 && (
+          <button
+            type="button"
+            disabled={ocupado}
+            onClick={entregarTodo}
+            className="mb-2 flex min-h-[52px] w-full items-center justify-center gap-2 rounded-xl border-2 border-estado-listo bg-estado-listo/15 text-base font-bold text-estado-listo transition hover:bg-estado-listo/25 active:scale-[0.98] disabled:opacity-50"
+          >
+            <CheckCheck className="h-5 w-5" aria-hidden />
+            Todo entregado ({porEntregar})
+          </button>
+        )}
         <div className="flex gap-2">
           <Boton
             variante="secundario"
