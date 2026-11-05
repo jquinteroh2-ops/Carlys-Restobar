@@ -543,21 +543,22 @@ export default function OrdenMesa() {
                             Entregado
                           </button>
                         )}
-                      {/* Se puede marcar aun enviado: cocina lo ve antes de emplatar. */}
-                      {item.estado !== 'anulado' && item.estado !== 'servido' && (
-                        <BotonParaLlevar
-                          activo={!!item.paraLlevar}
-                          deshabilitado={ocupado}
-                          onCambiar={(v) => cambiarParaLlevar(item, v)}
-                        />
-                      )}
                       {item.estado === 'servido' && item.paraLlevar && (
                         <span className="flex items-center gap-1 text-xs font-semibold text-dorado-300">
                           <ShoppingBag className="h-3.5 w-3.5" aria-hidden />
                           Para llevar
                         </span>
                       )}
+                      {/* Para llevar se puede marcar aun enviado: cocina lo ve antes
+                          de emplatar. Va en la misma fila que anular para que el
+                          plato no crezca hacia abajo. */}
                       {item.estado !== 'anulado' && item.estado !== 'servido' && (
+                        <div className="flex items-center gap-1">
+                        <BotonParaLlevar
+                          activo={!!item.paraLlevar}
+                          deshabilitado={ocupado}
+                          onCambiar={(v) => cambiarParaLlevar(item, v)}
+                        />
                         <button
                           type="button"
                           onClick={() => {
@@ -570,6 +571,7 @@ export default function OrdenMesa() {
                         >
                           <Ban className="h-3.5 w-3.5" aria-hidden />
                         </button>
+                        </div>
                       )}
                     </div>
                   </li>
