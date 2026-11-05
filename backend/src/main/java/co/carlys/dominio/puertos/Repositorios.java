@@ -9,6 +9,7 @@ import co.carlys.dominio.cobro.Pago;
 import co.carlys.dominio.comanda.Orden;
 import co.carlys.dominio.erp.EnvioErp;
 import co.carlys.dominio.institucional.ContenidoInstitucional;
+import co.carlys.dominio.papelera.RegistroEliminado;
 import co.carlys.dominio.pago.PagoOnline;
 import co.carlys.dominio.pedido.ZonaDomicilio;
 import co.carlys.dominio.personal.Usuario;
@@ -125,6 +126,29 @@ public final class Repositorios {
     Publicacion guardar(Publicacion publicacion);
 
     void eliminar(String id);
+  }
+
+  /**
+   * La papelera: la auditoria de lo eliminado y la mecanica de borrar y
+   * restaurar una venta completa (comanda, platos, cargos, pago y su envio al
+   * ERP) sin perder un dato.
+   */
+  public interface DePapelera {
+    /** La copia exacta de todo lo que forma la venta, lista para restaurar. */
+    String copiaDeVenta(String pagoId, String ordenId);
+
+    /** Borra la venta completa. Se llama en la misma transaccion que guarda la copia. */
+    void borrarVenta(String pagoId, String ordenId);
+
+    /** Vuelve a escribir las filas tal como estaban en la copia. */
+    void restaurarVenta(String copia);
+
+    Optional<RegistroEliminado> porId(String id);
+
+    /** Lo mas reciente primero. */
+    List<RegistroEliminado> listar();
+
+    RegistroEliminado guardar(RegistroEliminado registro);
   }
 
   public interface DeCierres {
