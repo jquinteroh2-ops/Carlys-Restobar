@@ -1,6 +1,7 @@
 package co.carlys.infraestructura.web;
 
 import co.carlys.aplicacion.ServicioCarta;
+import co.carlys.aplicacion.ServicioMasPedidos;
 import co.carlys.aplicacion.dto.Dtos;
 import co.carlys.dominio.carta.CategoriaCarta;
 import co.carlys.dominio.carta.ItemCarta;
@@ -36,9 +37,20 @@ import org.springframework.web.multipart.MultipartFile;
 public class ControladorCarta {
 
   private final ServicioCarta servicio;
+  private final ServicioMasPedidos masPedidos;
 
-  public ControladorCarta(ServicioCarta servicio) {
+  public ControladorCarta(ServicioCarta servicio, ServicioMasPedidos masPedidos) {
     this.servicio = servicio;
+    this.masPedidos = masPedidos;
+  }
+
+  /**
+   * Equivale a `masPedidos()`: los ids de los platos más vendidos del último
+   * mes, en orden. Vacío mientras no haya ventas suficientes.
+   */
+  @GetMapping("/mas-pedidos")
+  public List<String> masPedidos() {
+    return masPedidos.masPedidos();
   }
 
   /** Equivale a `listarCategorias()`. */
