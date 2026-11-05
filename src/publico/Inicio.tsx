@@ -429,10 +429,10 @@ export default function Inicio() {
           El mapa va embebido sin llave de API: una llave en el paquete
           compilado es una llave publica, y aqui solo hay que enseñar un punto
           que nunca se mueve. `loading="lazy"` para que la portada no espere por
-          el a pintarse. Va en escala de grises para que los colores de Google
-          no rompan el negro y dorado de la página; el pin se sigue viendo.
+          el a pintarse. Va a color: en gris las calles y los puntos de
+          referencia se confundían y costaba ubicarse.
         */}
-        <div className="revelar mt-16 border border-carbon-800">
+        <div className="revelar mt-16 overflow-hidden border border-carbon-800">
           <iframe
             title={`Ubicación de ${RESTAURANTE.nombreCompleto} en ${ficha.ciudad}`}
             src={enlaceMapaEmbebido(
@@ -441,7 +441,7 @@ export default function Inicio() {
             )}
             loading="lazy"
             referrerPolicy="no-referrer-when-downgrade"
-            className="h-[320px] w-full border-0 grayscale sm:h-[420px]"
+            className="block h-[320px] w-full border-0 sm:h-[420px]"
           />
         </div>
       </section>
